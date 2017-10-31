@@ -61,10 +61,15 @@ class Partner(db.Model):
 class PartnerSchema(ModelSchema):
     class Meta(ModelSchema.Meta):
         model = Partner
-        fields = ('nombre', 'nro_socio')
         sqla_session = db.session
 
 
 class PartnerLoginSchema(Schema):
-    documento_identidad = fields.String(required=True)
+    username = fields.String(required=True)
     password = fields.String(required=True)
+
+
+class PartnerLoginResponseSchema(Schema):
+    id = fields.Integer()
+    name = fields.String()
+    token = fields.String()

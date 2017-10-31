@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 #################
@@ -14,6 +14,8 @@ from flask_swagger import swagger
 from .utils.database import db
 from .utils.responses import response_with, BAD_REQUEST_400, SERVER_ERROR_404, SERVER_ERROR_500, NOT_FOUND_HANDLER_404
 from .utils.crypt import bcrypt
+from flask_cors import CORS
+from flask_migrate import Migrate, MigrateCommand
 # from .utils.config import DevelopmentConfig, ProductionConfig
 
 
@@ -22,6 +24,8 @@ from .utils.crypt import bcrypt
 ################
 
 app = Flask(__name__)
+
+CORS(app)
 
 app_settings = os.getenv('APP_SETTINGS', 'src.api.utils.config.DevelopmentConfig')
 app.config.from_object(app_settings)
@@ -35,6 +39,7 @@ bcrypt.init_app(app)
 
 db.init_app(app)
 
+migrate = Migrate(app, db)
 
 ###################
 ### blueprints ####

@@ -7,18 +7,19 @@ from flask import request
 from ..utils.responses import response_with
 from ..utils import responses as resp
 from ..models.model_author import Author, AuthorSchema
-from ..models.model_partner import Partner, PartnerLoginSchema, PartnerSchema
+from ..models.model_partner import Partner, PartnerLoginSchema, PartnerSchema, PartnerLoginResponseSchema
 from ..models.model_debt import Debt, DebtSchema
-from ..models.model_collection import Collection
-
+from ..models.model_collection import Collection, CollectionDetail, CollectionWay, CreateCollectionSchema
+# from ..models.model_payment_providers import TigoMoneyPaymentReq
 from ...api import db
+import json
 from ..utils.crypt import bcrypt
 
 route_path_general = Blueprint("route_path_general", __name__)
 
 
-@route_path_general.route('/v1.0/login', methods=['POST'])
-def login():
+@route_path_general.route('/v1.0/authenticate', methods=['POST'])
+def authenticate():
     """
         Partner login
         ---
@@ -29,12 +30,12 @@ def login():
               schema:
                 id: Partner
                 required:
-                    - documento_identidad
+                    - username
                     - password
                 properties:
-                    documento_identidad:
+                    username:
                         type: string
-                        description: Identity document of the partner
+                        description: Username of the partner
                     password:
                         type: string
                         description: Password of the partner
@@ -47,15 +48,13 @@ def login():
                       properties:
                         code:
                           type: string
-                        message:
-                          type: string
-                        partner:
+                        user:
                             id: PartnerLogin
                             properties:
-                                nombre:
+                                name:
                                     type: string
-                                nro_socio:
-                                    type: integer
+                                token:
+                                    type: string
                 403:
                     description: Invalid credentials
                     schema:
@@ -70,15 +69,17 @@ def login():
         data = request.get_json()
         partner_schema_login = PartnerLoginSchema()
         partner_login, error = partner_schema_login.load(data)
-        partner = Partner.query.filter_by(documento_identidad=partner_login['documento_identidad']).first()
+        partner = Partner.query.filter_by(documento_identidad=partner_login['username']).first()
         if partner and partner.nombre:
             first3_name = partner.nombre.lower().strip()[:3]
             last3_ci = partner.documento_identidad.strip()[-3:]
             correct_password = first3_name + last3_ci
             if partner_login['password'].lower() == correct_password:
-                partner_schema = PartnerSchema()
-                result = partner_schema.dump(partner).data
-                return response_with(resp.SUCCESS_200, value={"partner": result})
+                partner.token = 'este-es-el-token'
+                partner.name = partner.nombre
+                login_response_schema = PartnerLoginResponseSchema()
+                result = login_response_schema.dump(partner).data
+                return response_with(resp.SUCCESS_200, value={"user": result})
             else:
                 return response_with(resp.UNAUTHORIZED_403)
         else:
@@ -123,7 +124,7 @@ def get_partner_debt(partner_id):
         """
     # partner = Partner.query.filter_by(id_socio=partner_id).first()
 
-    query = Debt.query.filter(Debt.id_socio == partner_id).filter(Debt.saldo_x_pagar > 0).order_by(Debt.anno)
+    query = Debt.query.filter(Debt.id_socio == partner_id).filter(Debt.saldo_x_cobrar > 0).order_by(Debt.anio)
     fetched = query.all()
 
     # debts_dict = dict()
@@ -139,34 +140,45 @@ def get_partner_debt(partner_id):
     # for period in list(debts_dict):
     #     debt_list.append({'period': period, 'debts': debts_dict[period]})
 
-    debt_schema = DebtSchema(many=True, only=['id_cuota', 'mes', 'monto', 'saldo_x_pagar', 'vencimiento', 'anno'])
+    debt_schema = DebtSchema(many=True, only=['id_cuota', 'mes', 'monto_cobrado', 'saldo_x_cobrar', 'vencimiento', 'anio'])
     debts, error = debt_schema.dump(fetched)
     return response_with(resp.SUCCESS_200, value={"debts": debts})
 
 
-@route_path_general.route('/v1.0/payment', methods=['POST'])
+@route_path_general.route('/v1.0/collection', methods=['POST'])
 def create_collection():
     """
-        Payment of fees
+        Collection of fees
         ---
         parameters:
             - in: body
               name: body
               schema:
                 id: DebtCollect
-                type: array
-                description: Listado de cuotas cobradas
-                items:
-                    schema:
-                        id: DebtSchema
-                        properties:
-                            id_cuota:
-                                type: integer
-                            saldo_x_pagar:
-                                type: integer
+                required:
+                  - payment_method
+                  - debts
+                properties:
+                    payment_method:
+                        type: string
+                        description: Metodo de pago
+                    debts:
+                        type: array
+                        description: Listado de cuotas cobradas
+                        items:
+                            schema:
+                                id: DebtSchema
+                                properties:
+                                    id_cuota:
+                                        type: integer
+                                    amount:
+                                        type: integer
+                    payment_provider_data:
+                        type: object
+
         responses:
                 200:
-                    description: Author successfully created
+                    description: Collection successfully created
                     schema:
                       id: CollectionCreated
                       properties:
@@ -189,222 +201,110 @@ def create_collection():
     try:
         data = request.get_json()
         debt_schema = DebtSchema(many=True)
-        debts, error = debt_schema.load(data)
-        # debts = debts_dict['debts']
-        # for item in debts:
-        #     debt = Debt.query.get(item.id_cuota)
-        #     debt.saldo_x_pagar = item.saldo_x_pagar
-
+        debts, error = debt_schema.load(data['debts'])
         id_socio = debts[0].id_socio
-        partner = Partner.query.get(id_socio)
+        payment_method = data['payment_method']
 
-        collect = Collection(
+        partner = Partner.query.get(id_socio)
+        created_date = datetime.now()
+        total_amount = sum(item.amount for item in debts)
+        collection_way_list = [CollectionWay(id_socio, partner.nro_socio, created_date, payment_method, total_amount)]
+        collection_detail_list = [CollectionDetail(id_cuota=det.id_cuota, monto=det.amount, fecha=created_date)
+                                  for det in debts]
+
+
+        collection = Collection(
             id_socio=partner.id_socio,
-            efectivo=sum((item.monto - item.saldo_x_pagar) for item in debts),
-            fecha=datetime.now(),
-            forma_de_pago='on_line',
+            fecha=created_date,
             nro_socio=partner.nro_socio,
-            cantidad_de_cuotas=len(debts),
-            cuotas_afectadas=', '.join(str(item.id_cuota) for item in debts),
-            comprobante='dev',
+            categoria=None,
+            anno=None,
+            monto_cobrado=total_amount,
+            nro_recibo=None,
+            estado=None,
+            nota=None,
+            details=collection_detail_list,
+            collection_ways=collection_way_list
         )
 
-        db.session.add(collect)
+        db.session.add(collection)
         db.session.commit()
 
-        return response_with(resp.SUCCESS_200, value={"comprobante": collect.comprobante})
+        return response_with(resp.SUCCESS_200, value={"comprobante": collection.id_cobro})
     except Exception:
         return response_with(resp.INVALID_INPUT_422)
 
 
-# @route_path_general.route('/v1.0/authors', methods=['POST'])
-# def create_author():
-#     """
-#     Create author endpoint
-#     ---
-#     parameters:
-#         - in: body
-#           name: body
-#           schema:
-#             id: Author
-#             required:
-#                 - name
-#                 - surname
-#                 - books
-#             properties:
-#                 name:
-#                     type: string
-#                     description: First name of the author
-#                     default: "John"
-#                 surname:
-#                     type: string
-#                     description: Surname of the author
-#                     default: "Doe"
-#                 books:
-#                     type: string
-#                     description: Book list of author
-#                     type: array
-#                     items:
-#                         schema:
-#                             id: BookSchema
-#                             properties:
-#                                 title:
-#                                     type: string
-#                                     default: "My First Book"
-#                                 year:
-#                                     type: date
-#                                     default: "1989-01-01"
-#     responses:
-#             200:
-#                 description: Author successfully created
-#                 schema:
-#                   id: AuthorCreated
-#                   properties:
-#                     code:
-#                       type: string
-#                     message:
-#                       type: string
-#                     value:
-#                       schema:
-#                         id: AuthorFull
-#                         properties:
-#                             name:
-#                                 type: string
-#                             surname:
-#                                 type: string
-#                             books:
-#                                 type: array
-#                                 items:
-#                                     schema:
-#                                         id: BookSchema
-#             422:
-#                 description: Invalid input arguments
-#                 schema:
-#                     id: invalidInput
-#                     properties:
-#                         code:
-#                             type: string
-#                         message:
-#                             type: string
-#     """
-#     try:
-#         data = request.get_json()
-#         author_schema = AuthorSchema()
-#         author, error = author_schema.load(data)
-#         result = author_schema.dump(author.create()).data
-#         return response_with(resp.SUCCESS_200, value={"author": result})
-#     except Exception:
-#         return response_with(resp.INVALID_INPUT_422)
-#
-#
-# @route_path_general.route('/v1.0/authors', methods=['GET'])
-# def get_author_list():
-#     """
-#     Get author list
-#     ---
-#     responses:
-#             200:
-#                 description: Returns author list
-#                 schema:
-#                   id: AuthorList
-#                   properties:
-#                     code:
-#                       type: string
-#                     message:
-#                       type: string
-#                     authors:
-#                         type: array
-#                         items:
-#                             schema:
-#                                 id: AuthorSummary
-#                                 properties:
-#                                     name:
-#                                         type: string
-#                                     surname:
-#                                         type: string
-#     """
-#     fetched = Author.query.all()
-#     author_schema = AuthorSchema(many=True, only=['name', 'surname'])
-#     authors, error = author_schema.dump(fetched)
-#     return response_with(resp.SUCCESS_200, value={"authors": authors})
-#
-#
-# @route_path_general.route('/v1.0/authors/<int:author_id>', methods=['GET'])
-# def get_author_detail(author_id):
-#     """
-#     Get author detail
-#     ---
-#     parameters:
-#         - name: author_id
-#           in: path
-#           description: ID of the author
-#           required: true
-#           schema:
-#             type: integer
-#
-#     responses:
-#             200:
-#                 description: Returns author detail
-#                 schema:
-#                   id: AuthorList
-#                   properties:
-#                     code:
-#                       type: string
-#                     message:
-#                       type: string
-#                     author:
-#                         id: AuthorFull
-#                         properties:
-#                             name:
-#                                 type: string
-#                             surname:
-#                                 type: string
-#                             books:
-#                                 type: array
-#                                 items:
-#                                     schema:
-#                                         id: BookSchema
-#                                         properties:
-#                                             title:
-#                                                 type: string
-#                                             year:
-#                                                 type: date
-#     """
-#     fetched = Author.query.filter_by(id=author_id).first()
-#     author_schema = AuthorSchema()
-#     author, error = author_schema.dump(fetched)
-#     return response_with(resp.SUCCESS_200, value={"author": author})
-
-@route_path_general.route('/v1.0/payment_providers/bancard', methods=['POST'])
-def bancard_return():
+@route_path_general.route('/v1.0/collection/tigo_money_payment', methods=['POST'])
+def tigo_money_payment():
     """
-            Bancard return
+            Tigo money payment
             ---
             parameters:
                 - in: body
                   name: body
-                  description: Confirmation from bancard (success/error)
+                  description: Tigo money payment
                   schema:
-                    id: BancardReturn
+                    id: TigoMoneyPaymentRequest
                     required:
-                        - transaction
-                        - status
-                        - voucher
+                        - master_merchant
+                        - subscriber
+                        - payment
                     properties:
-                        transaction:
-                            type: string
-                            description: bancard transaction ID
-                        status:
-                            type: string
-                            description: transaction status
-                        voucher:
-                            type: string
-                            description: transaction voucher
+                        master_merchant:
+                            schema:
+                                id: MasterMerchant
+                                required:
+                                    - account
+                                    - pin
+                                    - id
+                                properties:
+                                    account:
+                                        type: string
+                                    pin:
+                                        type: string
+                                    id:
+                                        type: string
+                        subscriber:
+                            schema:
+                                id: Subscriber
+                                required:
+                                    - account
+                                    - country_code
+                                    - country
+                                    - email_id
+                                properties:
+                                    account:
+                                        type: string
+                                    country_code:
+                                        type: string
+                                    country:
+                                        type: string
+                                    email_id:
+                                        type: string
+                        payment:
+                            schema:
+                                id: Payment
+                                required:
+                                    - amount
+                                    - currency_code
+                                    - tax
+                                    - fee
+                                properties:
+                                    amount:
+                                        type: string
+                                    currency_code:
+                                        type: string
+                                    tax:
+                                        type: string
+                                    fee:
+                                        type: string
+
             responses:
                     200:
-                        description: Bancard return success receive
+                        description: Tigo money payment success receive
                         schema:
-                          id: BancardReturnSuccess
+                          id: TigoMoneyPaymentReturnSuccess
                           properties:
                             code:
                               type: string
@@ -420,52 +320,16 @@ def bancard_return():
                                 message:
                                     type: string
             """
-    pass
+    try:
+        data = request.get_json()
 
 
-@route_path_general.route('/v1.0/payment_providers/botontigo', methods=['POST'])
-def boton_tigo_return():
-    """
-            Boton Tigo return
-            ---
-            parameters:
-                - in: body
-                  name: body
-                  description: Confirmation from Boton Tigo (success/error)
-                  schema:
-                    id: BotonTigo
-                    required:
-                        - transaction
-                        - status
-                        - voucher
-                    properties:
-                        transaction:
-                            type: string
-                            description: tigo transaction ID
-                        status:
-                            type: string
-                            description: transaction status
-                        voucher:
-                            type: string
-                            description: transaction voucher
-            responses:
-                    200:
-                        description: Boton Tigo return success receive
-                        schema:
-                          id: BotonTigoReturnSuccess
-                          properties:
-                            code:
-                              type: string
-                            message:
-                              type: string
-                    422:
-                        description: Invalid input arguments
-                        schema:
-                            id: invalidInput
-                            properties:
-                                code:
-                                    type: string
-                                message:
-                                    type: string
-            """
-    pass
+
+        tigo_money_payment = TigoMoneyPaymentReq(json.dumps(data), 'pending')
+
+        db.session.add(tigo_money_payment)
+        db.session.commit()
+
+        return response_with(resp.SUCCESS_200, value={"comprobante": tigo_money_payment.id})
+    except Exception:
+        return response_with(resp.INVALID_INPUT_422)
