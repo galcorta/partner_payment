@@ -207,11 +207,17 @@ def create_collection():
 
         partner = Partner.query.get(id_socio)
         created_date = datetime.now()
-        total_amount = sum(item.amount for item in debts)
-        collection_way_list = [CollectionWay(id_socio, partner.nro_socio, created_date, payment_method, total_amount)]
-        collection_detail_list = [CollectionDetail(id_cuota=det.id_cuota, monto=det.amount, fecha=created_date)
-                                  for det in debts]
 
+        total_amount = 0
+        collection_detail_list = []
+        for debt in debts:
+            total_amount += debt.amount
+            collection_detail_list.append(CollectionDetail(id_cuota=debt.id_cuota,
+                                                           monto=debt.amount,
+                                                           fecha=created_date))
+            debt.saldo_x_cobrar -= debt.amount
+
+        collection_way_list = [CollectionWay(id_socio, partner.nro_socio, created_date, payment_method, total_amount)]
 
         collection = Collection(
             id_socio=partner.id_socio,
