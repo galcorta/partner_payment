@@ -108,7 +108,7 @@ class CollectionRequest(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     id_socio = db.Column(db.Integer)
-    payment_method = db.Column(db.String)
+    payment_provider = db.Column(db.String)
     total_amount = db.Column(db.String)
     message = db.Column(db.Text)
     status = db.Column(db.String)

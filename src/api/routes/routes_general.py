@@ -9,8 +9,8 @@ from ..utils import responses as resp
 from ..models.model_author import Author, AuthorSchema
 from ..models.model_partner import Partner, PartnerLoginSchema, PartnerSchema, PartnerLoginResponseSchema
 from ..models.model_debt import Debt, DebtSchema
-from ..models.model_collection import Collection, CollectionDetail, CollectionWay, CreateCollectionSchema
-# from ..models.model_payment_providers import TigoMoneyPaymentReq
+from ..models.model_collection import Collection, CollectionDetail, CollectionWay, CollectionRequest
+from ..models.model_payment_providers import TigoMoneyRequestSchema
 from ...api import db
 import json
 from ..utils.crypt import bcrypt
@@ -113,13 +113,11 @@ def get_partner_debt(partner_id):
                                             type: integer
                                         mes:
                                             type: string
-                                        monto:
-                                            type: integer
-                                        saldo_x_pagar:
+                                        saldo_x_cobrar:
                                             type: integer
                                         vencimiento:
                                             type: string
-                                        anno:
+                                        anio:
                                             type: string
         """
     # partner = Partner.query.filter_by(id_socio=partner_id).first()
@@ -140,7 +138,7 @@ def get_partner_debt(partner_id):
     # for period in list(debts_dict):
     #     debt_list.append({'period': period, 'debts': debts_dict[period]})
 
-    debt_schema = DebtSchema(many=True, only=['id_cuota', 'mes', 'monto_cobrado', 'saldo_x_cobrar', 'vencimiento', 'anio'])
+    debt_schema = DebtSchema(many=True, only=['id_cuota', 'mes', 'saldo_x_cobrar', 'vencimiento', 'anio'])
     debts, error = debt_schema.dump(fetched)
     return response_with(resp.SUCCESS_200, value={"debts": debts})
 
@@ -200,10 +198,23 @@ def create_collection():
         """
     try:
         data = request.get_json()
+        payment_method = data['payment_method']
+
+        if payment_method = 'tigo_money':
+            tm_request_schema = TigoMoneyRequestSchema()
+            tm_request, error  = tm_request_schema.load(data['payment_provider_data'])
+            manage_tigo_money(tm_request)
+        else if payment_method = 'bancard':
+            pass
+
+
+
+        collection_request = CollectionRequest()
+
         debt_schema = DebtSchema(many=True)
         debts, error = debt_schema.load(data['debts'])
         id_socio = debts[0].id_socio
-        payment_method = data['payment_method']
+
 
         partner = Partner.query.get(id_socio)
         created_date = datetime.now()
@@ -339,3 +350,8 @@ def tigo_money_payment():
         return response_with(resp.SUCCESS_200, value={"comprobante": tigo_money_payment.id})
     except Exception:
         return response_with(resp.INVALID_INPUT_422)
+
+
+
+def manage_tigo_money(request):
+    pass
