@@ -10,7 +10,7 @@ from ..models.model_author import Author, AuthorSchema
 from ..models.model_partner import Partner, PartnerLoginSchema, PartnerSchema, PartnerLoginResponseSchema
 from ..models.model_debt import Debt, DebtSchema
 from ..models.model_collection import Collection, CollectionDetail, CollectionWay, CollectionRequest
-from ..models.model_payment_providers import TigoMoneyRequestSchema
+from ..models.model_payment_providers import TigoMoneyRequestSchema, TigoMoneyManager
 from ...api import db
 import json
 from ..utils.crypt import bcrypt
@@ -200,11 +200,15 @@ def create_collection():
         data = request.get_json()
         payment_method = data['payment_method']
 
-        if payment_method = 'tigo_money':
-            tm_request_schema = TigoMoneyRequestSchema()
-            tm_request, error  = tm_request_schema.load(data['payment_provider_data'])
-            manage_tigo_money(tm_request)
-        else if payment_method = 'bancard':
+        if payment_method == 'tigo_money':
+            tm_manager = TigoMoneyManager()
+            tm_request, error = tm_manager.request_schema.load(data['payment_provider_data'])
+            access_token = tm_manager.token_generation()
+            tm_manager.payment_request(tm_request)
+
+            return response_with(resp.SUCCESS_200, value={"respuesta": access_token})
+
+        elif payment_method == 'bancard':
             pass
 
 
@@ -350,8 +354,3 @@ def tigo_money_payment():
         return response_with(resp.SUCCESS_200, value={"comprobante": tigo_money_payment.id})
     except Exception:
         return response_with(resp.INVALID_INPUT_422)
-
-
-
-def manage_tigo_money(request):
-    pass

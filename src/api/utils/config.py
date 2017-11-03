@@ -19,6 +19,10 @@ class DevelopmentConfig(BaseConfig):
     BCRYPT_LOG_ROUNDS = 4
     SQLALCHEMY_DATABASE_URI = 'postgresql://macrosys:macrosys@localhost:5432/macrosys'
     SQLALCHEMY_ECHO = False
+    TIGO_MONEY_TOKEN_URI = 'https://securesandbox.tigo.com/v1/oauth/mfs/payments/tokens'
+    TIGO_MONEY_PAYMENT_URI = 'https://securesandbox.tigo.com/v2/tigo/mfs/payments'
+    TIGO_MONEY_API_KEY = 'apiKey'
+    TIGO_MONEY_SECRET = 'secret'
 
 
 class TestingConfig(BaseConfig):
