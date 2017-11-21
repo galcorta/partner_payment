@@ -19,11 +19,7 @@ class DevelopmentConfig(BaseConfig):
     BCRYPT_LOG_ROUNDS = 4
     SQLALCHEMY_DATABASE_URI = 'postgresql://macrosys:macrosys@localhost:5432/macrosys'
     SQLALCHEMY_ECHO = False
-    TIGO_MONEY_TOKEN_URI = 'https://securesandbox.tigo.com/v1/oauth/mfs/payments/tokens'
-    TIGO_MONEY_PAYMENT_URI = 'https://securesandbox.tigo.com/v2/tigo/mfs/payments'
-    TIGO_MONEY_API_KEY = 'apiKey'
-    TIGO_MONEY_SECRET = 'secret'
-
+    SECRET_KEY = os.getenv('SECRET_KEY', 'my_precious')
 
 class TestingConfig(BaseConfig):
     """Testing configuration."""
@@ -38,28 +34,3 @@ class ProductionConfig(BaseConfig):
     """Production configuration."""
     SECRET_KEY = 'my_precious'
     SQLALCHEMY_DATABASE_URI = 'postgresql://macrosys:macrosys@localhost:5432/macrosys'
-
-#
-# class Config(object):
-#     DEBUG = False
-#     TESTING = False
-#     BCRYPT_LOG_ROUNDS = 13
-#     SQLALCHEMY_TRACK_MODIFICATIONS = False
-#
-#
-# class ProductionConfig(Config):
-#     SQLALCHEMY_DATABASE_URI = "sqlite://"
-#
-#
-# class DevelopmentConfig(Config):
-#     DEBUG = True
-#     BCRYPT_LOG_ROUNDS = 4
-#     SQLALCHEMY_DATABASE_URI = "sqlite://"
-#     SQLALCHEMY_ECHO = False
-#
-#
-# class TestingConfig(Config):
-#     TESTING = True
-#     BCRYPT_LOG_ROUNDS = 4
-#     SQLALCHEMY_DATABASE_URI = "sqlite://"
-#     SQLALCHEMY_ECHO = False

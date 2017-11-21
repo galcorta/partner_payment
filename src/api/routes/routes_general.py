@@ -1,25 +1,36 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-from datetime import datetime
+import json
 from flask import Blueprint
 from flask import request
+from flask import g
 from ..utils.responses import response_with
 from ..utils import responses as resp
-from ..models.model_author import Author, AuthorSchema
-from ..models.model_partner import Partner, PartnerLoginSchema, PartnerSchema, PartnerLoginResponseSchema
-from ..models.model_debt import Debt, DebtSchema
-from ..models.model_collection import Collection, CollectionDetail, CollectionWay, CollectionRequest
-from ..models.model_payment_providers import TigoMoneyRequestSchema, TigoMoneyManager
-from ...api import db
-import json
-from ..utils.crypt import bcrypt
+from ..models.partner import Partner, PartnerLoginSchema, PartnerLoginResponseSchema, PartnerCollection
+from ..models.partner_debt import PartnerDebt, PartnerDebtSchema
+from ..models.collection import CollectionTransaction
+from ..models.tigomoney import TigoMoneyManager
+from ..models.user import User, UserSchema
+from ..utils.auth import auth, auth_tk
+
 
 route_path_general = Blueprint("route_path_general", __name__)
 
 
-@route_path_general.route('/v1.0/authenticate', methods=['POST'])
-def authenticate():
+@route_path_general.route('/1.0/token', methods=['POST'])
+@auth.login_required
+def get_auth_token():
+    try:
+        token = g.user.generate_auth_token(300)
+        return response_with(resp.ACCESS_TOKEN_200, value={'access_token': token.decode('ascii')})
+    except Exception:
+        return response_with(resp.INVALID_INPUT_422)
+
+
+#  Solo se utiliza desde la web
+@route_path_general.route('/1.0/partners/authenticate', methods=['POST'])
+@auth.login_required
+def partner_authenticate():
     """
         Partner login
         ---
@@ -53,8 +64,6 @@ def authenticate():
                             properties:
                                 name:
                                     type: string
-                                token:
-                                    type: string
                 403:
                     description: Invalid credentials
                     schema:
@@ -71,15 +80,13 @@ def authenticate():
         partner_login, error = partner_schema_login.load(data)
         partner = Partner.query.filter_by(documento_identidad=partner_login['username']).first()
         if partner and partner.nombre:
-            first3_name = partner.nombre.lower().strip()[:3]
-            last3_ci = partner.documento_identidad.strip()[-3:]
-            correct_password = first3_name + last3_ci
-            if partner_login['password'].lower() == correct_password:
-                partner.token = 'este-es-el-token'
+            if partner.verify_password(partner_login['password']):
+                access_token = g.user.generate_auth_token(300)
                 partner.name = partner.nombre
+                partner.username = partner.documento_identidad
                 login_response_schema = PartnerLoginResponseSchema()
                 result = login_response_schema.dump(partner).data
-                return response_with(resp.SUCCESS_200, value={"user": result})
+                return response_with(resp.SUCCESS_200, value={'user': result, 'access_token': access_token})
             else:
                 return response_with(resp.UNAUTHORIZED_403)
         else:
@@ -88,8 +95,9 @@ def authenticate():
         return response_with(resp.INVALID_INPUT_422)
 
 
-@route_path_general.route('/v1.0/partner/<int:partner_id>/debt', methods=['GET'])
-def get_partner_debt(partner_id):
+@route_path_general.route('/1.0/partners/<string:username>/debts', methods=['GET'])
+@auth_tk.login_required
+def get_partner_debt(username):
     """
         List partner debts
         ---
@@ -109,7 +117,7 @@ def get_partner_debt(partner_id):
                                 schema:
                                     id: DebtSummary
                                     properties:
-                                        id_cuota:
+                                        id:
                                             type: integer
                                         mes:
                                             type: string
@@ -120,31 +128,25 @@ def get_partner_debt(partner_id):
                                         anio:
                                             type: string
         """
-    # partner = Partner.query.filter_by(id_socio=partner_id).first()
-
-    query = Debt.query.filter(Debt.id_socio == partner_id).filter(Debt.saldo_x_cobrar > 0).order_by(Debt.anio)
-    fetched = query.all()
-
-    # debts_dict = dict()
-    # for debt in fetched:
-    #     if debt.anno not in debts_dict:
-    #         debts_dict[debt.anno] = []
-    #     debts_dict[debt.anno].append({'id_cuota': debt.id_cuota,
-    #                             'mes': debt.mes,
-    #                             'monto': debt.monto,
-    #                             'saldo_x_pagar': debt.saldo_x_pagar,
-    #                             'vencimiento': debt.vencimiento})
-    # debt_list = []
-    # for period in list(debts_dict):
-    #     debt_list.append({'period': period, 'debts': debts_dict[period]})
-
-    debt_schema = DebtSchema(many=True, only=['id_cuota', 'mes', 'saldo_x_cobrar', 'vencimiento', 'anio'])
-    debts, error = debt_schema.dump(fetched)
-    return response_with(resp.SUCCESS_200, value={"debts": debts})
+    try:
+        partner = Partner.query.filter_by(documento_identidad=username).one_or_none()
+        if partner:
+            query = PartnerDebt.query.filter(PartnerDebt.id_socio == partner.id).filter(PartnerDebt.saldo_x_cobrar > 0)\
+                .order_by(PartnerDebt.anio)
+            fetched = query.all()
+            debt_schema = PartnerDebtSchema(many=True, only=['id', 'mes', 'saldo_x_cobrar', 'vencimiento', 'anio'])
+            debts, error = debt_schema.dump(fetched)
+            return response_with(resp.SUCCESS_200, value={"debts": debts})
+        else:
+            return response_with(resp.INVALID_INPUT_422,
+                                 message='El número de cédula proveído no existe en el sistema.')
+    except Exception:
+        return response_with(resp.INVALID_INPUT_422)
 
 
-@route_path_general.route('/v1.0/collection', methods=['POST'])
-def create_collection():
+@route_path_general.route('/1.0/partners/collection', methods=['POST'])
+@auth_tk.login_required
+def create_partner_collection():
     """
         Collection of fees
         ---
@@ -165,9 +167,9 @@ def create_collection():
                         description: Listado de cuotas cobradas
                         items:
                             schema:
-                                id: DebtSchema
+                                id: PartnerDebtSchema
                                 properties:
-                                    id_cuota:
+                                    id:
                                         type: integer
                                     amount:
                                         type: integer
@@ -196,136 +198,83 @@ def create_collection():
                             message:
                                 type: string
         """
-    try:
-        data = request.get_json()
-        payment_method = data['payment_method']
+    # try:
+    data = request.get_json()
+    debt_schema = PartnerDebtSchema(many=True)
+    debts, error = debt_schema.load(data['debts'])
+    total_amount = sum([debt.amount for debt in debts])
+    payment_provider = data['payment_method']
+    collection_transaction = CollectionTransaction(
+        context_id='partner_fee',
+        provider=payment_provider,
+        amount=total_amount,
+        data=json.dumps(data),
+        status='pending'
+    ).create()
 
-        if payment_method == 'tigo_money':
-            tm_manager = TigoMoneyManager()
-            tm_request, error = tm_manager.request_schema.load(data['payment_provider_data'])
-            access_token = tm_manager.token_generation()
-            tm_manager.payment_request(tm_request)
+    if payment_provider == 'tigo_money':
+        tm_manager = TigoMoneyManager()
+        redirect_uri, error = tm_manager.payment_request(collection_transaction)
+        if redirect_uri:
+            return response_with(resp.REDIRECT_200, value={"redirect_uri": redirect_uri})
+        else:
+            if error == 'null_token':
+                return response_with(resp.SERVER_ERROR_500,
+                                     message='Error al intentar obtener token de autorización de tigo')
+            else:
+                return response_with(resp.BAD_REQUEST_400)
 
-            return response_with(resp.SUCCESS_200, value={"respuesta": access_token})
+    elif payment_provider == 'bancard_vpos':
+        pass
 
-        elif payment_method == 'bancard':
-            pass
-
-
-
-        collection_request = CollectionRequest()
-
-        debt_schema = DebtSchema(many=True)
-        debts, error = debt_schema.load(data['debts'])
-        id_socio = debts[0].id_socio
-
-
-        partner = Partner.query.get(id_socio)
-        created_date = datetime.now()
-
-        total_amount = 0
-        collection_detail_list = []
-        for debt in debts:
-            total_amount += debt.amount
-            collection_detail_list.append(CollectionDetail(id_cuota=debt.id_cuota,
-                                                           monto=debt.amount,
-                                                           fecha=created_date))
-            debt.saldo_x_cobrar -= debt.amount
-
-        collection_way_list = [CollectionWay(id_socio, partner.nro_socio, created_date, payment_method, total_amount)]
-
-        collection = Collection(
-            id_socio=partner.id_socio,
-            fecha=created_date,
-            nro_socio=partner.nro_socio,
-            categoria=None,
-            anno=None,
-            monto_cobrado=total_amount,
-            nro_recibo=None,
-            estado=None,
-            nota=None,
-            details=collection_detail_list,
-            collection_ways=collection_way_list
-        )
-
-        db.session.add(collection)
-        db.session.commit()
-
+    else:
+        collection = PartnerCollection.create_collection(debts, payment_provider, collection_transaction.id)
         return response_with(resp.SUCCESS_200, value={"comprobante": collection.id_cobro})
-    except Exception:
-        return response_with(resp.INVALID_INPUT_422)
+    # except Exception:
+    #     return response_with(resp.INVALID_INPUT_422)
 
 
-@route_path_general.route('/v1.0/collection/tigo_money_payment', methods=['POST'])
-def tigo_money_payment():
+@route_path_general.route('/1.0/payment_providers/tigo/callback', methods=['POST'])
+def tigo_callback():
     """
-            Tigo money payment
+            Tigo Callback
             ---
             parameters:
-                - in: body
-                  name: body
-                  description: Tigo money payment
-                  schema:
-                    id: TigoMoneyPaymentRequest
-                    required:
-                        - master_merchant
-                        - subscriber
-                        - payment
-                    properties:
-                        master_merchant:
-                            schema:
-                                id: MasterMerchant
-                                required:
-                                    - account
-                                    - pin
-                                    - id
-                                properties:
-                                    account:
-                                        type: string
-                                    pin:
-                                        type: string
-                                    id:
-                                        type: string
-                        subscriber:
-                            schema:
-                                id: Subscriber
-                                required:
-                                    - account
-                                    - country_code
-                                    - country
-                                    - email_id
-                                properties:
-                                    account:
-                                        type: string
-                                    country_code:
-                                        type: string
-                                    country:
-                                        type: string
-                                    email_id:
-                                        type: string
-                        payment:
-                            schema:
-                                id: Payment
-                                required:
-                                    - amount
-                                    - currency_code
-                                    - tax
-                                    - fee
-                                properties:
-                                    amount:
-                                        type: string
-                                    currency_code:
-                                        type: string
-                                    tax:
-                                        type: string
-                                    fee:
-                                        type: string
-
+                - in: formData
+                  name: transactionStatus
+                  required: true
+                  type: string
+                  description: Transaction status success/fail
+                - in: formData
+                  name: merchantTransactionId
+                  required: false
+                  type: string
+                  description: Identificador proveido por el merchant
+                - in: formData
+                  name: mfsTransactionId
+                  required: false
+                  type: string
+                  description: ID de transacción generado en la plataforma de Tigo Money
+                - in: formData
+                  name: accessToken
+                  required: false
+                  type: string
+                  description: Token utilizado
+                - in: formData
+                  name: transactionCode
+                  required: false
+                  type: string
+                  description: Código de respuesta según resultado de la transacción
+                - in: formData
+                  name: transactionDescription
+                  required: false
+                  type: string
+                  description: Descripcion del status del campo anterior
             responses:
                     200:
-                        description: Tigo money payment success receive
+                        description: Collection successfully created
                         schema:
-                          id: TigoMoneyPaymentReturnSuccess
+                          id: success
                           properties:
                             code:
                               type: string
@@ -342,15 +291,44 @@ def tigo_money_payment():
                                     type: string
             """
     try:
-        data = request.get_json()
+        data = request.form
+        tm_manager = TigoMoneyManager()
+        tm_manager.payment_callback(data)
+        return response_with(resp.SUCCESS_200)
+    except Exception:
+        return response_with(resp.INVALID_INPUT_422)
 
 
+@route_path_general.route('/1.0/payment_providers/bancard/callback', methods=['POST'])
+def bancard_callback():
+    pass
 
-        tigo_money_payment = TigoMoneyPaymentReq(json.dumps(data), 'pending')
 
-        db.session.add(tigo_money_payment)
-        db.session.commit()
+@route_path_general.route('/1.0/users', methods=['POST'])
+@auth_tk.login_required
+def create_user():
+    try:
+        username = request.json.get('username')
+        password = request.json.get('password')
+        if username is None or password is None:
+            return response_with(resp.MISSING_PARAMETERS_422)  # missing arguments
+        if User.query.filter_by(username=username).first() is not None:
+            return response_with(resp.EXISTING_USER_400)
+        user = User(username=username)
+        user.hash_password(password)
+        user.create()
+        return response_with(resp.SUCCESS_200, value={"username": user.username})
+    except Exception:
+        return response_with(resp.INVALID_INPUT_422)
 
-        return response_with(resp.SUCCESS_200, value={"comprobante": tigo_money_payment.id})
+
+@route_path_general.route('/1.0/users', methods=['GET'])
+@auth_tk.login_required
+def get_users():
+    try:
+        user_schema = UserSchema(many=True, only=['username', 'active'])
+        users = User.query.all()
+        result, error = user_schema.dumps(users)
+        return response_with(resp.SUCCESS_200, value={"users": result})
     except Exception:
         return response_with(resp.INVALID_INPUT_422)

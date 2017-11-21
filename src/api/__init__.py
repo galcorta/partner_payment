@@ -15,8 +15,7 @@ from .utils.database import db
 from .utils.responses import response_with, BAD_REQUEST_400, SERVER_ERROR_404, SERVER_ERROR_500, NOT_FOUND_HANDLER_404
 from .utils.crypt import bcrypt
 from flask_cors import CORS
-from flask_migrate import Migrate, MigrateCommand
-# from .utils.config import DevelopmentConfig, ProductionConfig
+from flask_migrate import Migrate
 
 
 ################
@@ -40,6 +39,7 @@ bcrypt.init_app(app)
 db.init_app(app)
 
 migrate = Migrate(app, db)
+
 
 ###################
 ### blueprints ####
@@ -79,18 +79,15 @@ def not_found(e):
 ### spec route ####
 ###################
 
-@app.route("/api/v1.0/spec")
+@app.route("/api/1.0/spec")
 def spec():
-    swag = swagger(app, prefix='/api/v1.0')
+    swag = swagger(app, prefix='/api/1.0')
     swag['info']['version'] = "1.0"
     swag['info']['title'] = "Partner payment API"
     return jsonify(swag)
 
 
-# db.init_app(app)
-# with app.app_context():
-#     # from api.models import *
-#     db.create_all()
+from .models import *
 
 
 ################

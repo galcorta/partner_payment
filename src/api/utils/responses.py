@@ -3,6 +3,7 @@
 
 from flask import make_response, jsonify
 
+# General responses
 INVALID_FIELD_NAME_SENT_422 = {
     "http_code": 422,
     "code": "invalidField",
@@ -56,6 +57,26 @@ SUCCESS_200 = {
     'code': 'success'
 }
 
+# -------------------------------------
+
+REDIRECT_200 = {
+    "http_code": 200,
+    "code": "redirect",
+    "redirect_uri": "",
+    "message": "Redirect other page."
+}
+
+ACCESS_TOKEN_200 = {
+    'http_code': 200,
+    'code': 'success',
+    'access_token': ''
+}
+
+EXISTING_USER_400 = {
+    "http_code": 400,
+    "code": "existingUser",
+    "message": "Nombre de usuario ya existente."
+}
 
 def response_with(response, value=None, message=None, error=None, headers={}, pagination=None):
     result = {}
@@ -74,6 +95,6 @@ def response_with(response, value=None, message=None, error=None, headers={}, pa
         result.update({'pagination': pagination})
 
     headers.update({'Access-Control-Allow-Origin': '*'})
-    headers.update({'server': 'Flask Starter API'})
+    headers.update({'server': 'Payment API'})
 
     return make_response(jsonify(result), response['http_code'], headers)

@@ -3,13 +3,13 @@
 
 from ...api import db
 from marshmallow_sqlalchemy import ModelSchema
-from marshmallow import fields, Schema
+from marshmallow import fields
 
 
-class Debt(db.Model):
+class PartnerDebt(db.Model):
     __tablename__ = "ascuo01"
 
-    id_cuota = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id = db.Column('id_cuota', db.Integer, primary_key=True, autoincrement=True)
     id_socio = db.Column(db.Integer, db.ForeignKey('assoc01.id_socio'), nullable=False)
     nro_socio = db.Column(db.Integer)
     categoria = db.Column(db.String(50))
@@ -19,10 +19,6 @@ class Debt(db.Model):
     vencimiento = db.Column(db.Date)
     anio = db.Column(db.Integer)
     mes = db.Column(db.String(50))
-
-    @property
-    def id(self):
-        return self.id_cuota
 
     def __init__(self, id_socio, mes, monto, saldo, vencimiento, anio):
         self.id_socio = id_socio
@@ -38,12 +34,12 @@ class Debt(db.Model):
         return self
 
     def __repr__(self):
-        return '<Debt {0}>'.format(str(self.id_cuota) + '/' + str(self.monto_cobrado))
+        return '<Debt {0}>'.format(str(self.id) + '/' + str(self.saldo_x_cobrar))
 
 
-class DebtSchema(ModelSchema):
+class PartnerDebtSchema(ModelSchema):
     class Meta(ModelSchema.Meta):
-        model = Debt
+        model = PartnerDebt
         sqla_session = db.session
 
     amount = fields.Integer()
