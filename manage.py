@@ -20,76 +20,106 @@ def create_db():
 
 @manager.command
 def drop_db():
+    from src.api.models.payment_provider import PaymentProvider, PaymentProviderConfiguration, \
+        PaymentProviderEndpoint, PaymentProviderOperation
+    from src.api.models.collection import CollectionTransaction, CollectionEntity
     """Drops the db tables."""
-    db.drop_all()
+    # db.drop_all()
+    db.metadata.drop_all(db.engine, tables=[
+        PaymentProviderOperation.__table__,
+        PaymentProviderConfiguration.__table__,
+        PaymentProviderEndpoint.__table__,
+        PaymentProvider.__table__,
+        CollectionTransaction.__table__,
+        CollectionEntity.__table__,
+    ])
 
 
 @manager.command
-def create_data_demo():
-    """Creates sample data."""
-    from src.api.models.partner import Partner
-    from src.api.models.partner_debt import PartnerDebt
-    from src.api.models.payment_provider import PaymentProvider, PaymentProviderConfiguration, PaymentProviderEndpoint
-
-    db.session.add(Partner(
-        nro_socio='1111',
-        nombre='Carlos Perez',
-        documento_identidad='1111111',
-        email='juan.perez@example.com',
-        password='admin'))
-    db.session.commit()
-
-    db.session.add(Partner(
-        nro_socio='2222',
-        nombre='Nelia Velazquez',
-        documento_identidad='2222222',
-        email='nelia.velazquez@example.com',
-        password='demo'))
-    db.session.commit()
-
+def create_debts_demo():
+    from src.api.models.factusys import PartnerDebt
     for i in range(11, 13):
         debt = PartnerDebt(
-            id_socio=2,
-            mes=str(i),
+            id_libroventa=1,
             monto=12000,
+            estado='Pendiente',
+            fecha_vencimiento=datetime.strptime('2017-' + str(i).zfill(2) + '-05T00:00:00', '%Y-%m-%dT%H:%M:%S'),
+            fecha_financiacion=datetime.utcnow(),
+            nro_cuota=i,
             saldo=12000,
-            vencimiento=datetime.strptime('2016-' + str(i).zfill(2) + '-05T00:00:00', '%Y-%m-%dT%H:%M:%S'),
-            anio='2016'
+            id_cliente=1,
+            cod_deuda_cliente=0,
+            pagare=False
         )
         debt.create()
 
     for i in range(1, 13):
         debt = PartnerDebt(
-            id_socio=2,
-            mes=str(i),
-            monto=15000,
-            saldo=15000,
-            vencimiento=datetime.strptime('2017-' + str(i).zfill(2) + '-05T00:00:00', '%Y-%m-%dT%H:%M:%S'),
-            anio='2017'
+            id_libroventa=1,
+            monto=13000,
+            estado='Pendiente',
+            fecha_vencimiento=datetime.strptime('2018-' + str(i).zfill(2) + '-05T00:00:00', '%Y-%m-%dT%H:%M:%S'),
+            fecha_financiacion=datetime.utcnow(),
+            nro_cuota=i,
+            saldo=13000,
+            id_cliente=1,
+            cod_deuda_cliente=0,
+            pagare=False
         )
         debt.create()
 
     for i in range(7, 13):
         debt = PartnerDebt(
-            id_socio=1,
-            mes=str(i),
+            id_libroventa=1,
             monto=10000,
+            estado='Pendiente',
+            fecha_vencimiento=datetime.strptime('2017-' + str(i).zfill(2) + '-05T00:00:00', '%Y-%m-%dT%H:%M:%S'),
+            fecha_financiacion=datetime.utcnow(),
+            nro_cuota=i,
             saldo=10000,
-            vencimiento=datetime.strptime('2016-' + str(i).zfill(2) + '-05T00:00:00', '%Y-%m-%dT%H:%M:%S'),
-            anio='2016'
+            id_cliente=2,
+            cod_deuda_cliente=0,
+            pagare=False
         )
         debt.create()
 
     for i in range(1, 13):
         debt = PartnerDebt(
-            id_socio=1,
-            mes=str(i),
-            monto=13000,
-            saldo=13000,
-            vencimiento=datetime.strptime('2017-' + str(i).zfill(2) + '-05T00:00:00', '%Y-%m-%dT%H:%M:%S'),
-            anio='2017'
+            id_libroventa=1,
+            monto=11000,
+            estado='Pendiente',
+            fecha_vencimiento=datetime.strptime('2018-' + str(i).zfill(2) + '-05T00:00:00', '%Y-%m-%dT%H:%M:%S'),
+            fecha_financiacion=datetime.utcnow(),
+            nro_cuota=i,
+            saldo=11000,
+            id_cliente=2,
+            cod_deuda_cliente=0,
+            pagare=False
         )
         debt.create()
+
+
+@manager.command
+def create_data_demo():
+    """Creates sample data."""
+
+    from src.api.models.payment_provider import PaymentProvider, PaymentProviderConfiguration, PaymentProviderEndpoint
+
+    # db.session.add(Partner(
+    #     nro_socio='1111',
+    #     nombre='Carlos Perez',
+    #     documento_identidad='1111111',
+    #     email='juan.perez@example.com',
+    #     password='admin'))
+    # db.session.commit()
+    #
+    # db.session.add(Partner(
+    #     nro_socio='2222',
+    #     nombre='Nelia Velazquez',
+    #     documento_identidad='2222222',
+    #     email='nelia.velazquez@example.com',
+    #     password='demo'))
+    # db.session.commit()
 
     tigo = PaymentProvider(
         name='tigo_money',
@@ -99,6 +129,11 @@ def create_data_demo():
     bancard = PaymentProvider(
         name='bancard_vpos',
         description='Bancard VPOS'
+    ).create()
+
+    red_cobranza = PaymentProvider(
+        name='red_cobranza',
+        description='Red de cobranzas'
     ).create()
 
     PaymentProviderConfiguration(
@@ -117,20 +152,6 @@ def create_data_demo():
 
     PaymentProviderConfiguration(
         payment_provider_id=tigo.id,
-        name='TM_REDIRECT_URI',
-        value='https://test.api.tigo.com/v1/tigo/diagnostics/callback',
-        description=''
-    ).create()
-
-    PaymentProviderConfiguration(
-        payment_provider_id=tigo.id,
-        name='TM_CALLBACK_URI',
-        value='https://test.api.tigo.com/v1/tigo/diagnostics/callback',
-        description=''
-    ).create()
-
-    PaymentProviderConfiguration(
-        payment_provider_id=tigo.id,
         name='TM_AGENT_MSISDN',
         value='0981141971',
         description=''
@@ -140,6 +161,27 @@ def create_data_demo():
         payment_provider_id=tigo.id,
         name='TM_AGENT_PIN',
         value='1234',
+        description=''
+    ).create()
+
+    PaymentProviderConfiguration(
+        payment_provider_id=tigo.id,
+        name='TIPO_COMPROBANTE',
+        value='TIGO',
+        description=''
+    ).create()
+
+    PaymentProviderConfiguration(
+        payment_provider_id=tigo.id,
+        name='CCOSTO',
+        value='1.00',
+        description=''
+    ).create()
+
+    PaymentProviderConfiguration(
+        payment_provider_id=tigo.id,
+        name='CAJA',
+        value='001',
         description=''
     ).create()
 
@@ -156,6 +198,24 @@ def create_data_demo():
         payment_provider_id=tigo.id,
         name='TM_PAYMENT_URI',
         uri='https://securesandbox.tigo.com/v2/tigo/mfs/payments/authorizations',
+        read_to=10,
+        connect_to=60,
+        description=''
+    ).create()
+
+    PaymentProviderEndpoint(
+        payment_provider_id=tigo.id,
+        name='TM_REDIRECT_URI',
+        uri='http://www.leantic.ga:4200/redirect/tigo-money',
+        read_to=10,
+        connect_to=60,
+        description=''
+    ).create()
+
+    PaymentProviderEndpoint(
+        payment_provider_id=tigo.id,
+        name='TM_CALLBACK_URI',
+        uri='http://api.leantic.ga:8001/api/1.0/payment-providers/tigo-money/callback',
         read_to=10,
         connect_to=60,
         description=''

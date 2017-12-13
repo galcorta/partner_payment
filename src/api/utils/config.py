@@ -11,15 +11,20 @@ class BaseConfig(object):
     TESTING = False
     BCRYPT_LOG_ROUNDS = 13
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    LOGGER_HANDLER_POLICY = 'production'  # 'always' (default), 'never',  'production', 'debug'
+    LOGGER_NAME = 'payment_api'  # define which logger to use for Flask
 
 
 class DevelopmentConfig(BaseConfig):
     """Development configuration."""
     DEBUG = True
     BCRYPT_LOG_ROUNDS = 4
-    SQLALCHEMY_DATABASE_URI = 'postgresql://macrosys:macrosys@localhost:5432/macrosys'
+    # SQLALCHEMY_DATABASE_URI = 'postgresql://macrosys:macrosys@localhost:5432/macrosys'
+    SQLALCHEMY_DATABASE_URI = 'mssql+pyodbc://webapi:102030@dsWebAPINative'
     SQLALCHEMY_ECHO = False
     SECRET_KEY = os.getenv('SECRET_KEY', 'my_precious')
+    LOGGER_HANDLER_POLICY = 'always'  # 'always' (default), 'never',  'production', 'debug'
+
 
 class TestingConfig(BaseConfig):
     """Testing configuration."""
@@ -32,5 +37,5 @@ class TestingConfig(BaseConfig):
 
 class ProductionConfig(BaseConfig):
     """Production configuration."""
-    SECRET_KEY = 'my_precious'
-    SQLALCHEMY_DATABASE_URI = 'postgresql://macrosys:macrosys@localhost:5432/macrosys'
+    SECRET_KEY = os.getenv('SECRET_KEY', 'my_precious')
+    SQLALCHEMY_DATABASE_URI = 'mssql+pyodbc://webapi:102030@dsWebAPINative'

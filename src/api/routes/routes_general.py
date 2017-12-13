@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 
-import json
 from flask import Blueprint
 from flask import request
 from flask import g
+
+from src.api.controllers.tigomoney import TigoMoneyManager
 from ..utils.responses import response_with
 from ..utils import responses as resp
-from ..models.partner import Partner, PartnerLoginSchema, PartnerLoginResponseSchema, PartnerCollection
-from ..models.partner_debt import PartnerDebt, PartnerDebtSchema
-from ..models.collection import CollectionTransaction
-from ..models.tigomoney import TigoMoneyManager
-from ..models.user import User, UserSchema
+from ..models.collection import CollectionEntity, CollectionEntitySchema
 from ..utils.auth import auth, auth_tk
-
+from ..models.factusys import Partner, PartnerLoginSchema, PartnerLoginResponseSchema, \
+    PartnerDebt, PartnerDebtSchema
+from ..utils.responses import IRStatus
+from ..controllers.collection import CollectionController
+from ...api import app
 
 route_path_general = Blueprint("route_path_general", __name__)
 
@@ -20,10 +21,50 @@ route_path_general = Blueprint("route_path_general", __name__)
 @route_path_general.route('/1.0/token', methods=['POST'])
 @auth.login_required
 def get_auth_token():
+    """
+    Token Generation
+    ---
+    parameters:
+        - in: header
+          name: authorization
+          type: string
+          required: true
+    responses:
+        200:
+            description: Success token generation
+            schema:
+                id: succesTokenGeneration
+                properties:
+                    code:
+                        type: string
+                    message:
+                        type: string
+                    token:
+                        type: string
+        401:
+            description: Invalid credentials
+            schema:
+                id: invalidCredentials
+                properties:
+                    code:
+                        type: string
+                    message:
+                        type: string
+        422:
+            description: Invalid input arguments
+            schema:
+                id: invalidInput
+                properties:
+                    code:
+                        type: string
+                    message:
+                        type: string
+    """
     try:
-        token = g.user.generate_auth_token(300)
-        return response_with(resp.ACCESS_TOKEN_200, value={'access_token': token.decode('ascii')})
-    except Exception:
+        token = g.entity.generate_auth_token(300)
+        return response_with(resp.ACCESS_TOKEN_200, value={'token': token.decode('ascii')})
+    except Exception, e:
+        app.logger.error(str(e))
         return response_with(resp.INVALID_INPUT_422)
 
 
@@ -31,49 +72,56 @@ def get_auth_token():
 @route_path_general.route('/1.0/partners/authenticate', methods=['POST'])
 @auth.login_required
 def partner_authenticate():
-    """
-        Partner login
-        ---
-        parameters:
-            - in: body
-              name: body
-              description: Login of the partner
-              schema:
-                id: Partner
-                required:
-                    - username
-                    - password
-                properties:
-                    username:
-                        type: string
-                        description: Username of the partner
-                    password:
-                        type: string
-                        description: Password of the partner
-
-        responses:
-                200:
-                    description: Partner successfully login
-                    schema:
-                      id: PartnerSuccessLogin
-                      properties:
-                        code:
-                          type: string
-                        user:
-                            id: PartnerLogin
-                            properties:
-                                name:
-                                    type: string
-                403:
-                    description: Invalid credentials
-                    schema:
-                        id: invalidCredentials
-                        properties:
-                            code:
-                                type: string
-                            message:
-                                type: string
-        """
+    # """
+    #     Partner login
+    #     ---
+    #     parameters:
+    #         - in: body
+    #           name: body
+    #           description: Login of the partner
+    #           schema:
+    #             id: partnerLogin
+    #             required:
+    #                 - username
+    #                 - password
+    #             properties:
+    #                 username:
+    #                     type: string
+    #                     description: Username of the partner
+    #                 password:
+    #                     type: string
+    #                     description: Password of the partner
+    #
+    #     responses:
+    #             200:
+    #                 description: Partner successfully login
+    #                 schema:
+    #                   id: partnerLoginSuccess
+    #                   properties:
+    #                     code:
+    #                       type: string
+    #                     message:
+    #                       type: string
+    #                     token:
+    #                       type: string
+    #                     user:
+    #                         id: partner
+    #                         properties:
+    #                             name:
+    #                                 type: string
+    #                             username:
+    #                                 type: string
+    #
+    #             403:
+    #                 description: Invalid credentials
+    #                 schema:
+    #                     id: invalidCredentials
+    #                     properties:
+    #                         code:
+    #                             type: string
+    #                         message:
+    #                             type: string
+    #     """
     try:
         data = request.get_json()
         partner_schema_login = PartnerLoginSchema()
@@ -81,17 +129,20 @@ def partner_authenticate():
         partner = Partner.query.filter_by(documento_identidad=partner_login['username']).first()
         if partner and partner.nombre:
             if partner.verify_password(partner_login['password']):
-                access_token = g.user.generate_auth_token(300)
+                token = g.entity.generate_auth_token(300)
                 partner.name = partner.nombre
                 partner.username = partner.documento_identidad
                 login_response_schema = PartnerLoginResponseSchema()
                 result = login_response_schema.dump(partner).data
-                return response_with(resp.SUCCESS_200, value={'user': result, 'access_token': access_token})
+                return response_with(resp.SUCCESS_200,
+                                     value={'user': result, 'token': token},
+                                     message='Operación exitosa.')
             else:
-                return response_with(resp.UNAUTHORIZED_403)
+                return response_with(resp.INVALID_CREDENTIALS_401)
         else:
-            return response_with(resp.UNAUTHORIZED_403)
-    except Exception:
+            return response_with(resp.INVALID_CREDENTIALS_401)
+    except Exception, e:
+        app.logger.error(str(e))
         return response_with(resp.INVALID_INPUT_422)
 
 
@@ -105,42 +156,39 @@ def get_partner_debt(username):
                 200:
                     description: Returns debt list
                     schema:
-                      id: DebtList
+                      id: debtList
                       properties:
                         code:
-                          type: string
+                            type: string
                         message:
-                          type: string
+                            type: string
                         debts:
                             type: array
                             items:
                                 schema:
-                                    id: DebtSummary
+                                    id: debt
                                     properties:
                                         id:
                                             type: integer
-                                        mes:
-                                            type: string
-                                        saldo_x_cobrar:
+                                        saldo:
                                             type: integer
-                                        vencimiento:
-                                            type: string
-                                        anio:
+                                        fecha_vencimiento:
                                             type: string
         """
     try:
-        partner = Partner.query.filter_by(documento_identidad=username).one_or_none()
+        partner = Partner.query.filter_by(documento_identidad=username).all()
         if partner:
-            query = PartnerDebt.query.filter(PartnerDebt.id_socio == partner.id).filter(PartnerDebt.saldo_x_cobrar > 0)\
-                .order_by(PartnerDebt.anio)
+            partner = partner[0]
+            query = PartnerDebt.query.filter(PartnerDebt.id_cliente == partner.id).filter(PartnerDebt.saldo > 0)\
+                .order_by(PartnerDebt.fecha_vencimiento)
             fetched = query.all()
-            debt_schema = PartnerDebtSchema(many=True, only=['id', 'mes', 'saldo_x_cobrar', 'vencimiento', 'anio'])
+            debt_schema = PartnerDebtSchema(many=True, only=['id', 'saldo', 'fecha_vencimiento'])
             debts, error = debt_schema.dump(fetched)
-            return response_with(resp.SUCCESS_200, value={"debts": debts})
+            return response_with(resp.SUCCESS_200, value={"debts": debts}, message='Operación exitosa.')
         else:
-            return response_with(resp.INVALID_INPUT_422,
-                                 message='El número de cédula proveído no existe en el sistema.')
-    except Exception:
+            return response_with(resp.INVALID_PARTNER_422)
+    except Exception, e:
+        app.logger.error(str(e))
         return response_with(resp.INVALID_INPUT_422)
 
 
@@ -154,39 +202,48 @@ def create_partner_collection():
             - in: body
               name: body
               schema:
-                id: DebtCollect
+                id: debtCollect
                 required:
-                  - payment_method
+                  - collection_entity_data
                   - debts
                 properties:
-                    payment_method:
-                        type: string
-                        description: Metodo de pago
                     debts:
                         type: array
                         description: Listado de cuotas cobradas
                         items:
                             schema:
-                                id: PartnerDebtSchema
+                                id: debtCollect
                                 properties:
                                     id:
                                         type: integer
                                     amount:
                                         type: integer
-                    payment_provider_data:
+                    collection_entity_data:
                         type: object
+                        description: Datos referentes a la entidad cobradora.
+                        schema:
+                            id: collectionEntityData
+                            required:
+                              - name
+                            properties:
+                                name:
+                                    type: string
+                                voucher:
+                                    type: string
+                                payment_provider_data:
+                                    type: object
 
         responses:
                 200:
                     description: Collection successfully created
                     schema:
-                      id: CollectionCreated
+                      id: collectionCreated
                       properties:
                         code:
                           type: string
                         message:
                           type: string
-                        comprobante:
+                        transaction_id:
                           type: string
                 422:
                     description: Invalid input arguments
@@ -198,137 +255,121 @@ def create_partner_collection():
                             message:
                                 type: string
         """
-    # try:
-    data = request.get_json()
-    debt_schema = PartnerDebtSchema(many=True)
-    debts, error = debt_schema.load(data['debts'])
-    total_amount = sum([debt.amount for debt in debts])
-    payment_provider = data['payment_method']
-    collection_transaction = CollectionTransaction(
-        context_id='partner_fee',
-        provider=payment_provider,
-        amount=total_amount,
-        data=json.dumps(data),
-        status='pending'
-    ).create()
-
-    if payment_provider == 'tigo_money':
-        tm_manager = TigoMoneyManager()
-        redirect_uri, error = tm_manager.payment_request(collection_transaction)
-        if redirect_uri:
-            return response_with(resp.REDIRECT_200, value={"redirect_uri": redirect_uri})
+    try:
+        data = request.get_json()
+        collection_controller = CollectionController(data)
+        result = collection_controller.collect()
+        if result.status == IRStatus.success:
+            return response_with(resp.SUCCESS_200, value=result.value)
         else:
-            if error == 'null_token':
-                return response_with(resp.SERVER_ERROR_500,
-                                     message='Error al intentar obtener token de autorización de tigo')
+            if result.status == IRStatus.fail_400:
+                return response_with(resp.BAD_REQUEST_400, message=result.message)
             else:
-                return response_with(resp.BAD_REQUEST_400)
-
-    elif payment_provider == 'bancard_vpos':
-        pass
-
-    else:
-        collection = PartnerCollection.create_collection(debts, payment_provider, collection_transaction.id)
-        return response_with(resp.SUCCESS_200, value={"comprobante": collection.id_cobro})
-    # except Exception:
-    #     return response_with(resp.INVALID_INPUT_422)
+                return response_with(resp.SERVER_ERROR_500, message=result.message)
+    except Exception, e:
+        app.logger.error(str(e))
+        return response_with(resp.INVALID_INPUT_422)
 
 
-@route_path_general.route('/1.0/payment_providers/tigo/callback', methods=['POST'])
+@route_path_general.route('/1.0/payment-providers/tigo-money/callback', methods=['POST'])
 def tigo_callback():
-    """
-            Tigo Callback
-            ---
-            parameters:
-                - in: formData
-                  name: transactionStatus
-                  required: true
-                  type: string
-                  description: Transaction status success/fail
-                - in: formData
-                  name: merchantTransactionId
-                  required: false
-                  type: string
-                  description: Identificador proveido por el merchant
-                - in: formData
-                  name: mfsTransactionId
-                  required: false
-                  type: string
-                  description: ID de transacción generado en la plataforma de Tigo Money
-                - in: formData
-                  name: accessToken
-                  required: false
-                  type: string
-                  description: Token utilizado
-                - in: formData
-                  name: transactionCode
-                  required: false
-                  type: string
-                  description: Código de respuesta según resultado de la transacción
-                - in: formData
-                  name: transactionDescription
-                  required: false
-                  type: string
-                  description: Descripcion del status del campo anterior
-            responses:
-                    200:
-                        description: Collection successfully created
-                        schema:
-                          id: success
-                          properties:
-                            code:
-                              type: string
-                            message:
-                              type: string
-                    422:
-                        description: Invalid input arguments
-                        schema:
-                            id: invalidInput
-                            properties:
-                                code:
-                                    type: string
-                                message:
-                                    type: string
-            """
+    # """
+    # Tigo Callback
+    # ---
+    # parameters:
+    #     - in: formData
+    #       name: transactionStatus
+    #       required: true
+    #       type: string
+    #       description: Transaction status success/fail
+    #     - in: formData
+    #       name: merchantTransactionId
+    #       required: false
+    #       type: string
+    #       description: Identificador proveido por el merchant
+    #     - in: formData
+    #       name: mfsTransactionId
+    #       required: false
+    #       type: string
+    #       description: ID de transacción generado en la plataforma de Tigo Money
+    #     - in: formData
+    #       name: accessToken
+    #       required: false
+    #       type: string
+    #       description: Token utilizado
+    #     - in: formData
+    #       name: transactionCode
+    #       required: false
+    #       type: string
+    #       description: Código de respuesta según resultado de la transacción
+    #     - in: formData
+    #       name: transactionDescription
+    #       required: false
+    #       type: string
+    #       description: Descripcion del status del campo anterior
+    # responses:
+    #         200:
+    #             description: Collection successfully created
+    #             schema:
+    #               id: success
+    #               properties:
+    #                 code:
+    #                   type: string
+    #                 message:
+    #                   type: string
+    #         422:
+    #             description: Invalid input arguments
+    #             schema:
+    #                 id: invalidInput
+    #                 properties:
+    #                     code:
+    #                         type: string
+    #                     message:
+    #                         type: string
+    # """
     try:
         data = request.form
         tm_manager = TigoMoneyManager()
         tm_manager.payment_callback(data)
         return response_with(resp.SUCCESS_200)
-    except Exception:
+    except Exception, e:
+        app.logger.error(str(e))
         return response_with(resp.INVALID_INPUT_422)
 
 
-@route_path_general.route('/1.0/payment_providers/bancard/callback', methods=['POST'])
+@route_path_general.route('/1.0/payment-providers/bancard/callback', methods=['POST'])
 def bancard_callback():
     pass
 
 
 @route_path_general.route('/1.0/users', methods=['POST'])
 @auth_tk.login_required
-def create_user():
+def create_collection_entity():
     try:
+        name = request.json.get('username')
         username = request.json.get('username')
         password = request.json.get('password')
-        if username is None or password is None:
-            return response_with(resp.MISSING_PARAMETERS_422)  # missing arguments
-        if User.query.filter_by(username=username).first() is not None:
+        if name is None or username is None or password is None:
+            return response_with(resp.MISSING_PARAMETERS_422)
+        if CollectionEntity.query.filter_by(username=username).one_or_none() is not None:
             return response_with(resp.EXISTING_USER_400)
-        user = User(username=username)
-        user.hash_password(password)
-        user.create()
-        return response_with(resp.SUCCESS_200, value={"username": user.username})
+        if CollectionEntity.query.filter_by(name=name).one_or_none() is not None:
+            return response_with(resp.EXISTING_USER_400)
+        entity = CollectionEntity(name=name, username=username)
+        entity.hash_password(password)
+        entity.create()
+        return response_with(resp.SUCCESS_200, value={"username": entity.username})
     except Exception:
         return response_with(resp.INVALID_INPUT_422)
 
 
 @route_path_general.route('/1.0/users', methods=['GET'])
 @auth_tk.login_required
-def get_users():
+def get_collection_entity():
     try:
-        user_schema = UserSchema(many=True, only=['username', 'active'])
-        users = User.query.all()
-        result, error = user_schema.dumps(users)
-        return response_with(resp.SUCCESS_200, value={"users": result})
+        entity_schema = CollectionEntitySchema(many=True, only=['username', 'active'])
+        entities = CollectionEntity.query.all()
+        result, error = entity_schema.dumps(entities)
+        return response_with(resp.SUCCESS_200, value={"entities": result})
     except Exception:
         return response_with(resp.INVALID_INPUT_422)

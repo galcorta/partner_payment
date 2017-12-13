@@ -2,8 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from flask import make_response, jsonify
+from enum import Enum
+from ...api import app
 
-# General responses
+
+# HTTP responses
+# General
 INVALID_FIELD_NAME_SENT_422 = {
     "http_code": 422,
     "code": "invalidField",
@@ -25,13 +29,6 @@ MISSING_PARAMETERS_422 = {
 BAD_REQUEST_400 = {
     "http_code": 400,
     "code": "badRequest",
-    "message": "Bad request"
-}
-
-SERVER_ERROR_500 = {
-    "http_code": 500,
-    "code": "serverError",
-    "message": "Server error"
 }
 
 SERVER_ERROR_404 = {
@@ -46,6 +43,12 @@ UNAUTHORIZED_403 = {
     "message": "You are not allowed to do that."
 }
 
+SERVER_ERROR_500 = {
+    "http_code": 500,
+    "code": "serverError",
+    "message": "Server error"
+}
+
 NOT_FOUND_HANDLER_404 = {
     "http_code": 404,
     "code": "notFound",
@@ -57,19 +60,13 @@ SUCCESS_200 = {
     'code': 'success'
 }
 
-# -------------------------------------
 
-REDIRECT_200 = {
-    "http_code": 200,
-    "code": "redirect",
-    "redirect_uri": "",
-    "message": "Redirect other page."
-}
-
+# Special
 ACCESS_TOKEN_200 = {
     'http_code': 200,
     'code': 'success',
-    'access_token': ''
+    'message': 'Token generado exitosamente.',
+    'token': ''
 }
 
 EXISTING_USER_400 = {
@@ -77,6 +74,36 @@ EXISTING_USER_400 = {
     "code": "existingUser",
     "message": "Nombre de usuario ya existente."
 }
+
+INVALID_CREDENTIALS_401 = {
+    "http_code": 401,
+    "code": "invalidCredentials",
+    "message": "Credenciales inválidas."
+}
+
+INVALID_TOKEN_403 = {
+    "http_code": 403,
+    "code": "invalidToken",
+    "message": "Token inválido o expirado."
+}
+
+INVALID_PARTNER_422 = {
+    "http_code": 422,
+    "code": "invalidInput",
+    "message": "El número de cédula proveído no existe en el sistema."
+}
+
+INVALID_PAYMENT_PROVIDER_422 = {
+    "http_code": 422,
+    "code": "invalidInput",
+    "message": "El proveedor de pago no existe en el sistema o no esta habilitado."
+}
+
+CUSTOM_SERVER_ERROR_500 = {
+    "http_code": 500,
+    "code": "serverError"
+}
+
 
 def response_with(response, value=None, message=None, error=None, headers={}, pagination=None):
     result = {}
@@ -98,3 +125,20 @@ def response_with(response, value=None, message=None, error=None, headers={}, pa
     headers.update({'server': 'Payment API'})
 
     return make_response(jsonify(result), response['http_code'], headers)
+
+
+class IRStatus(Enum):
+    success = 1
+    fail = 2
+    fail_400 = 3
+    fail_500 = 4
+
+
+class InternalResponse(object):
+
+    def __init__(self, status=IRStatus.success, message=None, value=None):
+        self.status = status
+        self.message = message or (status == 'success' and 'Operación exitosa!' or None)
+        self.value = value
+        if not status == IRStatus.success and self.message:
+            app.logger.info(self.message)

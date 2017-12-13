@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-
 from ...api import db
 
 
 # Models
 class PaymentProvider(db.Model):
-    __tablename__ = "pypro01"
+    __tablename__ = "PaymentProvider"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String, nullable=False)
@@ -33,10 +32,10 @@ class PaymentProvider(db.Model):
 
 
 class PaymentProviderConfiguration(db.Model):
-    __tablename__ = "ppcon01"
+    __tablename__ = "PaymentProviderConfiguration"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    payment_provider_id = db.Column(db.Integer, db.ForeignKey('pypro01.id'), nullable=False)
+    payment_provider_id = db.Column(db.Integer, db.ForeignKey('PaymentProvider.id'), nullable=False)
     name = db.Column(db.String, nullable=False)
     value = db.Column(db.String)
     description = db.Column(db.String)
@@ -55,11 +54,11 @@ class PaymentProviderConfiguration(db.Model):
 
 
 class PaymentProviderEndpoint(db.Model):
-    __tablename__ = "ppedp01"
+    __tablename__ = "PaymentProviderEndpoint"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    payment_provider_id = db.Column(db.Integer, db.ForeignKey('pypro01.id'), nullable=False)
-    name = db.Column(db.String, nullable=False, unique=True)
+    payment_provider_id = db.Column(db.Integer, db.ForeignKey('PaymentProvider.id'), nullable=False)
+    name = db.Column(db.String(50), nullable=False, unique=True)
     uri = db.Column(db.String)
     read_to = db.Column(db.Integer)
     connect_to = db.Column(db.Integer)
@@ -81,18 +80,18 @@ class PaymentProviderEndpoint(db.Model):
 
 
 class PaymentProviderOperation(db.Model):
-    __tablename__ = "ppope01"
+    __tablename__ = "PaymentProviderOperation"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    transaction_id = db.Column(db.Integer, db.ForeignKey('coltrx01.id'), nullable=False)
-    payment_provider_id = db.Column(db.Integer, db.ForeignKey('pypro01.id'), nullable=False)
+    transaction_id = db.Column(db.Integer, db.ForeignKey('CollectionTransaction.id'), nullable=False)
+    payment_provider_id = db.Column(db.Integer, db.ForeignKey('PaymentProvider.id'), nullable=False)
     method = db.Column(db.String)
     content_type = db.Column(db.String)
     authorization = db.Column(db.String)
     status_code = db.Column(db.Integer)
     content = db.Column(db.Text)
     direction = db.Column(db.Enum("sended", "received", name='tm_operation_direction'))
-    parent_id = db.Column(db.Integer, db.ForeignKey('ppope01.id'))
+    parent_id = db.Column(db.Integer, db.ForeignKey('PaymentProviderOperation.id'))
     operation_type = db.Column(db.Enum("request", "response", name='tm_operation_type'))
     create_date = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     active = db.Column(db.Boolean, default=True)

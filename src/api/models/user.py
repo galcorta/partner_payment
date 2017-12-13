@@ -8,7 +8,7 @@ from itsdangerous import (TimedJSONWebSignatureSerializer
 
 class User(db.Model):
     """ User Model for storing user related details """
-    __tablename__ = "apiusr01"
+    __tablename__ = "ApiUser"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(32), index=True)
