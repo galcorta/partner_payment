@@ -204,7 +204,7 @@ def create_partner_collection():
               schema:
                 id: debtCollect
                 required:
-                  - collection_entity_data
+                  - payment_provider_data
                   - debts
                 properties:
                     debts:
@@ -218,11 +218,11 @@ def create_partner_collection():
                                         type: integer
                                     amount:
                                         type: integer
-                    collection_entity_data:
+                    payment_provider_data:
                         type: object
                         description: Datos referentes a la entidad cobradora.
                         schema:
-                            id: collectionEntityData
+                            id: paymentProviderData
                             required:
                               - name
                             properties:

@@ -7,6 +7,7 @@ from ..models.factusys import PartnerCollection, PartnerDebtSchema
 from ..models.collection import CollectionTransaction
 from .tigomoney import TigoMoneyManager
 from .red_cobranza import RedCobranzaManager
+from .bancard_vpos import BancardVposManager
 from ...api import db
 
 
@@ -47,7 +48,8 @@ class CollectionController:
                         return tm_manager.payment_request(collection_transaction)
 
                     elif payment_provider.name == 'bancard_vpos':
-                        pass
+                        vpos_manager = BancardVposManager()
+                        return vpos_manager.payment_request(collection_transaction)
 
                     elif payment_provider.name == 'red_cobranza':
                         red_cobranza_manager = RedCobranzaManager()

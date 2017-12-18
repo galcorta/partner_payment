@@ -24,7 +24,7 @@ class CollectionTransaction(db.Model):
     collection_entity_id = db.Column(db.Integer, db.ForeignKey('CollectionEntity.id'), nullable=False)
     payment_provider_id = db.Column(db.Integer, db.ForeignKey('PaymentProvider.id'))
     payment_provider_voucher = db.Column(db.String(50))
-    amount = db.Column(db.Integer)
+    amount = db.Column(db.Float)
     data = db.Column(db.Text)
     status = db.Column(db.String(15))
     write_date = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
@@ -83,7 +83,7 @@ class CollectionEntity(db.Model):
 
 # Schemas
 class CreateCollectionSchema(Schema):
-    payment_method = fields.String()
+    payment_method = fields.Str()
     debts = fields.Nested(PartnerDebtSchema, many=True)
 
 
