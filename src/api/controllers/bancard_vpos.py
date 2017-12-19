@@ -17,7 +17,7 @@ from ..models.bancard_vpos import Token, Operation, BaseRequest, BaseRequestSche
 class BancardVposManager:
 
     def __init__(self):
-        self.request_schema = BancardVposRequestSchema()
+        # self.request_schema = BancardVposRequestSchema()
         self.payment_provider = PaymentProvider.query.filter_by(name='bancard_vpos').one()
         self.token_uri = self.payment_provider.get_endpoint_by_name('SINGLE_BUY')
         self.payment_url = self.payment_provider.get_endpoint_by_name('SINGLE_BUY_ROLLBACK')

@@ -61,7 +61,7 @@ def get_auth_token():
                         type: string
     """
     try:
-        token = g.entity.generate_auth_token(300)
+        token = g.entity.generate_auth_token(600)
         return response_with(resp.ACCESS_TOKEN_200, value={'token': token.decode('ascii')})
     except Exception, e:
         app.logger.error(str(e))
@@ -129,7 +129,7 @@ def partner_authenticate():
         partner = Partner.query.filter_by(documento_identidad=partner_login['username']).first()
         if partner and partner.nombre:
             if partner.verify_password(partner_login['password']):
-                token = g.entity.generate_auth_token(300)
+                token = g.entity.generate_auth_token(600)
                 partner.name = partner.nombre
                 partner.username = partner.documento_identidad
                 login_response_schema = PartnerLoginResponseSchema()
