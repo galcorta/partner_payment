@@ -2,6 +2,8 @@
 
 import json
 import logging
+import random
+import time
 import shortuuid
 from ...api import db
 from marshmallow import fields, Schema
@@ -12,14 +14,18 @@ from itsdangerous import (TimedJSONWebSignatureSerializer
                           as Serializer, BadSignature, SignatureExpired)
 from ..utils.responses import InternalResponse, IRStatus
 
+
 # Models
+def default_display_id():
+    return int(time.time() + random.getrandbits(32))
 
 
 class CollectionTransaction(db.Model):
     __tablename__ = "CollectionTransaction"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    display_id = db.Column(db.String(25), nullable=False, unique=True, index=True, default=shortuuid.uuid)
+    # display_id = db.Column(db.String(25), nullable=False, unique=True, index=True, default=shortuuid.uuid)
+    display_id = db.Column(db.Integer)
     context_id = db.Column(db.Enum('partner_fee', 'product_sale', name='collection_transaction_context'))
     collection_entity_id = db.Column(db.Integer, db.ForeignKey('CollectionEntity.id'), nullable=False)
     payment_provider_id = db.Column(db.Integer, db.ForeignKey('PaymentProvider.id'))
@@ -33,6 +39,8 @@ class CollectionTransaction(db.Model):
 
     def create(self):
         db.session.add(self)
+        db.session.commit()
+        self.display_id = int(time.time() + self.id)
         db.session.commit()
         return self
 
