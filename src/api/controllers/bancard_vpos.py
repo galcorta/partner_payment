@@ -84,12 +84,6 @@ class BancardVposManager:
             log_req = self._log_request(request, collection)
             response = requests.post(self.single_buy, json=request)
             self._log_response(response, log_req, collection)
-            try:
-                res_json = res.json()
-                response_schema = ResponseSchema()
-                result = response_schema.load(res_json)
-            except ValueError:
-                res_json = res.content
 
             if response.status_code == requests.codes.ok:
                 result = InternalResponse()
