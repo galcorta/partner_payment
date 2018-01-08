@@ -20,10 +20,11 @@ class BancardVposManager:
     def __init__(self):
         self.payment_provider = PaymentProvider.query.filter_by(name='bancard_vpos').one()
         self.single_buy = self.payment_provider.get_endpoint_by_name('SINGLE_BUY')
-        self.return_url = self.payment_provider.get_endpoint_by_name('REDIRECT_URL')
+        self.return_url = self.payment_provider.get_endpoint_by_name('RETURN_URL')
         self.single_buy_rollback = self.payment_provider.get_endpoint_by_name('SINGLE_BUY_ROLLBACK')
         self.single_buy_confirmation = self.payment_provider.get_endpoint_by_name('SINGLE_BUY_CONFIRMATION')
         self.get_single_buy_confirmation = self.payment_provider.get_endpoint_by_name('GET_SINGLE_BUY_CONFIRMATION')
+        self.redirect_vpos_url = self.payment_provider.get_endpoint_by_name('REDIRECT_VPOS_URL')
         self.public_key = self.payment_provider.get_config_by_name('PUBLIC_KEY')
         self.private_key = self.payment_provider.get_config_by_name('PRIVATE_KEY')
 
@@ -56,8 +57,6 @@ class BancardVposManager:
                                  parent_id=req.id).create()
 
     def _single_buy(self, collection):
-        # total_amount = 0.00
-        # total_amount = Decimal(collection.amount)
 
         token = Token(private_key=self.private_key,
                       shop_process_id=collection.display_id,
@@ -86,7 +85,9 @@ class BancardVposManager:
             self._log_response(response, log_req, collection)
 
             if response.status_code == requests.codes.ok:
-                result = InternalResponse()
+                redirect_uri = self.redirect_vpos_url + '?process_id=' + response.json()['process_id'] \
+                               + '&from_mobile=false'
+                result = InternalResponse(value={"redirectUri": redirect_uri})
             else:
                 result = InternalResponse(status=IRStatus.fail,
                                           message="No se pudo procesar su pago. Por favor vuelva a intentar, "
@@ -108,7 +109,7 @@ class BancardVposManager:
         pass
 
     def payment_request(self, collection):
-        self._single_buy(collection)
+        return self._single_buy(collection)
 
 
 
