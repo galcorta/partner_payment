@@ -11,7 +11,7 @@ from ..models.collection import CollectionTransaction
 from ..models.factusys import PartnerDebtSchema, PartnerCollection, PartnerCollectionWay
 from ...api import db
 from ..utils.responses import InternalResponse, IRStatus
-from ..models.bancard_vpos import Token, Operation, Request, ResponseSchema
+from ..models.bancard_vpos import Token, Operation, Request, SingleBuyConfirmRequestSchema
 from decimal import Decimal
 
 
@@ -63,14 +63,15 @@ class BancardVposManager:
                       amount=("%.2f" % collection.amount),
                       currency='PYG')
 
+        return_uri = self.return_url + '?merchantTransactionId=' + collection.display_id
         operation = Operation(
             token=token,
             shop_process_id=collection.display_id,
             amount=("%.2f" % collection.amount),
             currency='PYG',
             description='Pago de cuota social',
-            return_url=self.return_url,
-            cancel_url=self.return_url)
+            return_url=return_uri,
+            cancel_url=return_uri)
 
         base_request = Request(
             public_key=self.public_key,
@@ -99,8 +100,60 @@ class BancardVposManager:
 
         return result
 
-    def _single_buy_confirmation(self):
-        pass
+    def _single_buy_confirmation(self, data):
+        result = InternalResponse()
+        single_buy_confirm_request_schema = SingleBuyConfirmRequestSchema()
+        request, error = single_buy_confirm_request_schema.load(data)
+
+        if not error:
+            operation = request.operation
+            collection = CollectionTransaction.query.filter_by(display_id=operation.shop_process_id,
+                                                               status='pending').one_or_none()
+
+            if collection:
+                request_origin = PaymentProviderOperation.query.filter_by(transaction_id=collection.id,
+                                                                          operation_type='request',
+                                                                          direction='sended').one_or_none()
+                if request_origin:
+                    PaymentProviderOperation(transaction_id=collection.id,
+                                             payment_provider_id=self.payment_provider.id,
+                                             operation_type='request',
+                                             direction='received',
+                                             content_type='application/json',
+                                             content=json.dumps(data),
+                                             method='POST',
+                                             parent_id=request_origin.id).create()
+
+                    collection.status = 'success' if operation.response_code == '00' else 'canceled'
+                    collection.payment_provider_voucher = operation.ticket_number
+
+                    if collection.status == 'success':
+                        collection_data = json.loads(collection.data)
+                        debt_schema = PartnerDebtSchema(many=True, only=['id', 'amount'])
+                        debts, error = debt_schema.load(collection_data['debts'])
+
+                        if debts and not error:
+                            if not PartnerCollectionWay.query.filter_by(collection_transaction_id=collection.id)\
+                                    .one_or_none():
+                                partner_collection = PartnerCollection()
+                                partner_collection.create(debts, collection)
+                                # PartnerCollection.create_collection(debts, self.payment_provider, self.collection)
+                                db.session.commit()
+                            else:
+                                result = InternalResponse(status=IRStatus.fail)
+                        else:
+                            result = InternalResponse(status=IRStatus.fail)
+                    else:
+                        db.session.commit()
+                        result = InternalResponse(status=IRStatus.fail)
+                else:
+                    result = InternalResponse(status=IRStatus.fail)
+            else:
+                result = InternalResponse(status=IRStatus.fail)
+        else:
+            result = InternalResponse(status=IRStatus.fail)
+
+        return result
 
     def _single_buy_get_confirmation(self):
         pass
@@ -111,6 +164,5 @@ class BancardVposManager:
     def payment_request(self, collection):
         return self._single_buy(collection)
 
-
-
-
+    def payment_callback(self, data):
+        return self._single_buy_confirmation(data)

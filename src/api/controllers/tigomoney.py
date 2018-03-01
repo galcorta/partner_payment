@@ -100,6 +100,7 @@ class TigoMoneyManager:
         return result
 
     def payment_callback(self, data):
+        result = InternalResponse()
 
         collection = CollectionTransaction.query.filter_by(display_id=data['merchantTransactionId'],
                                                            status='pending').one_or_none()
@@ -116,8 +117,10 @@ class TigoMoneyManager:
                                          content=json.dumps(data),
                                          method='POST',
                                          parent_id=request_origin.id).create()
+
                 collection.status = data['transactionStatus']
                 collection.payment_provider_voucher = data['mfsTransactionId']
+
                 if data['transactionStatus'] == 'success':
                     collection_data = json.loads(collection.data)
                     debt_schema = PartnerDebtSchema(many=True, only=['id', 'amount'])
@@ -126,15 +129,19 @@ class TigoMoneyManager:
                     if debts and not error:
                         if not PartnerCollectionWay.query.filter_by(collection_transaction_id=collection.id)\
                                 .one_or_none():
-                            PartnerCollection.create_collection(debts, self.payment_provider, collection)
+                            partner_collection = PartnerCollection(debts, collection)
+                            partner_collection.create()
                             db.session.commit()
                         else:
-                            raise
+                            result = InternalResponse(status=IRStatus.fail)
                     else:
-                        raise
+                        result = InternalResponse(status=IRStatus.fail)
                 else:
                     db.session.commit()
+                    result = InternalResponse(status=IRStatus.fail)
             else:
-                raise
+                result = InternalResponse(status=IRStatus.fail)
         else:
-            raise
+            result = InternalResponse(status=IRStatus.fail)
+
+        return result

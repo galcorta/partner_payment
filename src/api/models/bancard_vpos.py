@@ -26,7 +26,9 @@ class Token(object):
 
 class Operation(object):
     def __init__(self, token, shop_process_id, amount=None, currency=None, additional_data=None, description=None,
-                 return_url=None, cancel_url=None, response=None, response_details=None, authorization_number=None):
+                 return_url=None, cancel_url=None, response=None, response_details=None, authorization_number=None,
+                 ticket_number=None, response_code=None, response_description=None, extended_response_description=None,
+                 security_information=None):
 
         self.token = str(token)
         self.shop_process_id = shop_process_id
@@ -39,6 +41,21 @@ class Operation(object):
         self.response = response
         self.response_details = response_details
         self.authorization_number = authorization_number
+
+        self.ticket_number = ticket_number
+        self.response_code = response_code
+        self.response_description = response_description
+        self.extended_response_description = extended_response_description
+        self.security_information = security_information
+
+
+class SecurityInformation(object):
+    def __init__(self, card_source, customer_ip, card_country, version, risk_index):
+        self.card_source = card_source
+        self.customer_ip = customer_ip
+        self.card_country = card_country
+        self.version = version
+        self.risk_index = risk_index
 
 
 class Request(object):
@@ -58,6 +75,11 @@ class Response(object):
         self.process_id = process_id
 
 
+class SingleBuyConfirmRequest(object):
+    def __init__(self, operation):
+        self.operation = operation
+
+
 # Schemas
 class BaseSchema(Schema):
     SKIP_VALUES = set([None])
@@ -70,10 +92,19 @@ class BaseSchema(Schema):
         }
 
 
-class OperationSchema(BaseSchema):
-    # class Meta:
-    #     ordered = True
+class SecurityInformationSchema(BaseSchema):
+    card_source = fields.Str()
+    customer_ip = fields.Str()
+    card_country = fields.Str()
+    version = fields.Str()
+    risk_index = fields.Int()
 
+    @post_load
+    def make_object(self, data):
+        return SecurityInformation(**data)
+
+
+class OperationSchema(BaseSchema):
     token = fields.Str()
     shop_process_id = fields.Str()
     amount = fields.Str()
@@ -85,6 +116,15 @@ class OperationSchema(BaseSchema):
     response = fields.Str()
     response_details = fields.Str()
     authorization_number = fields.Str()
+    ticket_number = fields.Str()
+    response_code = fields.Str()
+    response_description = fields.Str()
+    extended_response_description = fields.Str()
+    security_information = fields.Nested(SecurityInformationSchema)
+
+    @post_load
+    def make_object(self, data):
+        return Operation(**data)
 
 
 class RequestSchema(Schema):
@@ -97,8 +137,16 @@ class ResponseSchema(Schema):
     process_id = fields.Str()
 
     @post_load
-    def make_user(self, data):
+    def make_object(self, data):
         return Response(**data)
+
+
+class SingleBuyConfirmRequestSchema(Schema):
+    operation = fields.Nested(OperationSchema, required=True)
+
+    @post_load
+    def make_object(self, data):
+        return SingleBuyConfirmRequest(**data)
 
 
 

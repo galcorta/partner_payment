@@ -28,7 +28,7 @@ MISSING_PARAMETERS_422 = {
 
 BAD_REQUEST_400 = {
     "http_code": 400,
-    "code": "badRequest",
+    "code": "badRequest"
 }
 
 SERVER_ERROR_404 = {
@@ -89,14 +89,19 @@ INVALID_TOKEN_403 = {
 
 INVALID_PARTNER_422 = {
     "http_code": 422,
-    "code": "invalidInput",
+    "code": "invalidPartner",
     "message": "El número de cédula proveído no existe en el sistema."
 }
 
 INVALID_PAYMENT_PROVIDER_422 = {
     "http_code": 422,
-    "code": "invalidInput",
+    "code": "invalidPaymentProvider",
     "message": "El proveedor de pago no existe en el sistema o no esta habilitado."
+}
+
+VALIDATION_ERROR_422 = {
+    "http_code": 422,
+    "code": "validationError"
 }
 
 CUSTOM_SERVER_ERROR_500 = {
@@ -112,6 +117,8 @@ def response_with(response, value=None, message=None, error=None, headers={}, pa
 
     if response.get('message', None) is not None:
         result.update({'message': response['message']})
+    elif message:
+        result.update({'message': message})
 
     result.update({'code': response['code']})
 
@@ -131,7 +138,8 @@ class IRStatus(Enum):
     success = 1
     fail = 2
     fail_400 = 3
-    fail_500 = 4
+    fail_422 = 4
+    fail_500 = 5
 
 
 class InternalResponse(object):

@@ -9,6 +9,7 @@ from ...api import db
 from marshmallow import fields, Schema
 from marshmallow_sqlalchemy import ModelSchema
 from ..models.factusys import PartnerCollection, PartnerDebtSchema
+from ..models.payment_provider import PaymentProvider
 from ...api import app, db, bcrypt
 from itsdangerous import (TimedJSONWebSignatureSerializer
                           as Serializer, BadSignature, SignatureExpired)
@@ -35,7 +36,10 @@ class CollectionTransaction(db.Model):
     status = db.Column(db.String(15))
     write_date = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     create_date = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    partner_id = db.Column(db.Integer)
     active = db.Column(db.Boolean, default=True)
+
+    payment_provider = db.relationship("PaymentProvider")
 
     def create(self):
         db.session.add(self)
@@ -71,6 +75,11 @@ class CollectionEntity(db.Model):
         db.session.commit()
         return self
 
+    # def update(self):
+    #     db.session.(self)
+    #     db.session.commit()
+    #     return self
+
     def generate_auth_token(self, expiration=600):
         s = Serializer(app.config['SECRET_KEY'], expires_in=expiration)
 
@@ -98,4 +107,10 @@ class CreateCollectionSchema(Schema):
 class CollectionEntitySchema(ModelSchema):
     class Meta(ModelSchema.Meta):
         model = CollectionEntity
+        sqla_session = db.session
+
+
+class CollectionTransactionSchema(ModelSchema):
+    class Meta(ModelSchema.Meta):
+        model = CollectionTransaction
         sqla_session = db.session

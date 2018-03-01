@@ -49,7 +49,6 @@ db.init_app(app)
 
 migrate = Migrate(app, db)
 
-
 ###################
 ### blueprints ####
 ###################
@@ -111,3 +110,4 @@ from .models import *
 # logging.basicConfig(stream=sys.stdout,
 #                     format='%(asctime)s|%(levelname)s|%(filename)s:%(lineno)s|%(message)s',
 #                     level=logging.DEBUG)
+
