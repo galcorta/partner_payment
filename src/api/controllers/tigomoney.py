@@ -9,7 +9,8 @@ from ..models.payment_provider import PaymentProvider, PaymentProviderOperation
 from ..models.collection import CollectionTransaction
 from ..models.factusys import PartnerDebtSchema, PartnerCollection, PartnerCollectionWay
 from ...api import db
-from ..utils.responses import InternalResponse, IRStatus
+from ..utils.responses import response_with
+from ..utils import responses as resp
 
 
 class TigoMoneyManager:
@@ -86,21 +87,17 @@ class TigoMoneyManager:
                                              parent_id=tm_req.id).create()
 
                     if res.status_code == requests.codes.ok:
-                        result = InternalResponse(value={"redirectUri": res_json['redirectUrl']})
+                        return response_with(resp.SUCCESS_200, value={"redirectUri": res_json['redirectUrl']})
                     else:
-                        result = InternalResponse(status=IRStatus.fail,
-                                                  message="No se pudo procesar su pago. Por favor vuelva a intentar, "
-                                                  "si el inconveniente persiste comuniquese con el comercio.")
+                        return response_with(resp.CUSTOM_SERVER_ERROR_500,
+                                               message="No se pudo procesar su pago. Por favor vuelva a intentar, "
+                                                       "si el inconveniente persiste comuniquese con el comercio.")
             else:
-                return InternalResponse(status=IRStatus.fail,
-                                        message="Error al intentar obtener token de autorización de tigo")
+                return response_with(resp.GET_TIGOMONEY_TOKEN_ERROR_500)
         else:
-            return InternalResponse(status=IRStatus.fail_400, message="Request inválido!")
-
-        return result
+            return response_with(resp.INVALID_PAYMENT_PROVIDER_DATA_400)
 
     def payment_callback(self, data):
-        result = InternalResponse()
 
         collection = CollectionTransaction.query.filter_by(display_id=data['merchantTransactionId'],
                                                            status='pending').one_or_none()
@@ -129,19 +126,18 @@ class TigoMoneyManager:
                     if debts and not error:
                         if not PartnerCollectionWay.query.filter_by(collection_transaction_id=collection.id)\
                                 .one_or_none():
-                            partner_collection = PartnerCollection(debts, collection)
-                            partner_collection.create()
+                            partner_collection = PartnerCollection()
+                            partner_collection.create(debts, collection)
                             db.session.commit()
+                            return response_with(resp.SUCCESS_200)
                         else:
-                            result = InternalResponse(status=IRStatus.fail)
+                            return response_with(resp.SERVER_ERROR_500)
                     else:
-                        result = InternalResponse(status=IRStatus.fail)
+                        return response_with(resp.SERVER_ERROR_500)
                 else:
                     db.session.commit()
-                    result = InternalResponse(status=IRStatus.fail)
+                    return response_with(resp.SUCCESS_200)
             else:
-                result = InternalResponse(status=IRStatus.fail)
+                return response_with(resp.INVALID_INPUT_422)
         else:
-            result = InternalResponse(status=IRStatus.fail)
-
-        return result
+            return response_with(resp.INVALID_INPUT_422)

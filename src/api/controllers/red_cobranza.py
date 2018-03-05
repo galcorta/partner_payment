@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
-from ..utils.responses import InternalResponse, IRStatus
+from ..utils.responses import response_with
+from ..utils import responses as resp
 from ..models.factusys import PartnerCollection
 from ...api import db
 from ..models.red_cobranza import RedCobranzaRequestSchema
@@ -22,14 +23,13 @@ class RedCobranzaManager:
         req_dump, error = self._request_treatment(collection)
         if not error:
             collection.payment_provider_voucher = req_dump['voucher']
-            # PartnerCollection.create_collection(debts, self.payment_provider, collection)
             partner_collection = PartnerCollection()
             partner_collection.create(debts, collection)
             collection.status = 'success'
             db.session.commit()
-            return InternalResponse(value={"transaction_id": collection.display_id})
+            return response_with(resp.SUCCESS_200, value={"transaction_id": collection.display_id})
         else:
-            return InternalResponse(status=IRStatus.fail_400, message="Request inválido!")
+            return response_with(resp.INVALID_PAYMENT_PROVIDER_DATA_400)
 
     def payment_cancel(self, collection):
         try:
@@ -37,6 +37,6 @@ class RedCobranzaManager:
             partner_collection.cancel_collection()
             collection.status = 'cancel'
             db.session.commit()
-            return InternalResponse(message="Operación anulada exitosamente!.")
+            return response_with(resp.SUCCESS_200, message="Operación anulada exitosamente!.")
         except Exception, e:
-            return InternalResponse(status=IRStatus.fail_500)
+            return response_with(resp.SERVER_ERROR_500)

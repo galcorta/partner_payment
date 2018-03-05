@@ -1,18 +1,14 @@
 # -*- coding: utf-8 -*-
 
 import json
-from functools import total_ordering
-
 import requests
-from requests.auth import HTTPBasicAuth
-
 from ..models.payment_provider import PaymentProvider, PaymentProviderOperation
 from ..models.collection import CollectionTransaction
 from ..models.factusys import PartnerDebtSchema, PartnerCollection, PartnerCollectionWay
 from ...api import db
-from ..utils.responses import InternalResponse, IRStatus
 from ..models.bancard_vpos import Token, Operation, Request, SingleBuyConfirmRequestSchema
-from decimal import Decimal
+from ..utils.responses import response_with
+from ..utils import responses as resp
 
 
 class BancardVposManager:
@@ -27,9 +23,6 @@ class BancardVposManager:
         self.redirect_vpos_url = self.payment_provider.get_endpoint_by_name('REDIRECT_VPOS_URL')
         self.public_key = self.payment_provider.get_config_by_name('PUBLIC_KEY')
         self.private_key = self.payment_provider.get_config_by_name('PRIVATE_KEY')
-
-    def _get_token(self):
-        pass
 
     def _log_request(self, req, collection):
         return PaymentProviderOperation(transaction_id=collection.id,
@@ -88,20 +81,17 @@ class BancardVposManager:
             if response.status_code == requests.codes.ok:
                 redirect_uri = self.redirect_vpos_url + '?process_id=' + response.json()['process_id'] \
                                + '&from_mobile=false'
-                result = InternalResponse(value={"redirectUri": redirect_uri})
+                return response_with(resp.SUCCESS_200, value={"redirectUri": redirect_uri})
             else:
-                result = InternalResponse(status=IRStatus.fail,
-                                          message="No se pudo procesar su pago. Por favor vuelva a intentar, "
-                                                  "si el inconveniente persiste comuniquese con el comercio.")
+                return response_with(resp.CUSTOM_SERVER_ERROR_500, message="No se pudo procesar su pago. Por favor "
+                                                                             "vuelva a intentar, si el inconveniente "
+                                                                             "persiste comuniquese con el comercio.")
         else:
-            result = InternalResponse(status=IRStatus.fail,
-                                      message="No se pudo procesar su pago. Por favor vuelva a intentar, "
-                                              "si el inconveniente persiste comuniquese con el comercio.")
-
-        return result
+            return response_with(resp.CUSTOM_SERVER_ERROR_500, message="No se pudo procesar su pago. Por favor "
+                                                                         "vuelva a intentar, si el inconveniente "
+                                                                         "persiste comuniquese con el comercio.")
 
     def _single_buy_confirmation(self, data):
-        result = InternalResponse()
         single_buy_confirm_request_schema = SingleBuyConfirmRequestSchema()
         request, error = single_buy_confirm_request_schema.load(data)
 
@@ -137,23 +127,21 @@ class BancardVposManager:
                                     .one_or_none():
                                 partner_collection = PartnerCollection()
                                 partner_collection.create(debts, collection)
-                                # PartnerCollection.create_collection(debts, self.payment_provider, self.collection)
                                 db.session.commit()
+                                return response_with(resp.SUCCESS_200)
                             else:
-                                result = InternalResponse(status=IRStatus.fail)
+                                return response_with(resp.SERVER_ERROR_500)
                         else:
-                            result = InternalResponse(status=IRStatus.fail)
+                            return response_with(resp.SERVER_ERROR_500)
                     else:
                         db.session.commit()
-                        result = InternalResponse(status=IRStatus.fail)
+                        return response_with(resp.SUCCESS_200)
                 else:
-                    result = InternalResponse(status=IRStatus.fail)
+                    return response_with(resp.INVALID_INPUT_422)
             else:
-                result = InternalResponse(status=IRStatus.fail)
+                return response_with(resp.INVALID_INPUT_422)
         else:
-            result = InternalResponse(status=IRStatus.fail)
-
-        return result
+            return response_with(resp.INVALID_INPUT_422)
 
     def _single_buy_get_confirmation(self):
         pass

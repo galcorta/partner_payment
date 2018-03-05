@@ -2,7 +2,9 @@
 import json
 from datetime import date, timedelta
 from flask import g
-from ..utils.responses import InternalResponse, IRStatus
+# from ..utils.responses import InternalResponse, IRStatus
+from ..utils.responses import response_with
+from ..utils import responses as resp
 from ..models.payment_provider import PaymentProvider
 from ..models.factusys import PartnerDebtSchema, PartnerDebt
 from ..models.collection import CollectionTransaction
@@ -36,9 +38,7 @@ class CollectionController:
                         .order_by(PartnerDebt.fecha_vencimiento)
                     fetched = query.all()
                     if fetched:
-                        return InternalResponse(status=IRStatus.fail_422,
-                                                message="No puede pagar cuotas de forma desordenada dejando pendientes "
-                                                        "deudas anteriores correspondientes al mismo periodo/año")
+                        return response_with(resp.DISORDERED_FEE_PAYMENT_422)
 
             band = False
             total_amount = 0
@@ -78,25 +78,17 @@ class CollectionController:
                         red_cobranza_manager = RedCobranzaManager()
                         return red_cobranza_manager.payment_request(debts, collection_transaction)
                     else:
-                        return InternalResponse(status=IRStatus.fail_400,
-                                                message="Nombre de proveedor de pago inválido!.")
+                        return response_with(resp.INVALID_PAYMENT_PROVIDER_NAME_400)
                 else:
-                    return InternalResponse(status=IRStatus.fail_400,
-                                            message="El proveedor de pago no existe en el sistema o no está habilitado.")
+                    return response_with(resp.INVALID_PAYMENT_PROVIDER_400)
             else:
-                return InternalResponse(status=IRStatus.fail_400,
-                                        message="Monto de cuota a pagar igual o menor a cero.")
+                return response_with(resp.FEE_AMOUNT_INVALID_400)
         else:
-            return InternalResponse(status=IRStatus.fail_400,
-                                    message="Datos de las cuotas a pagar mal informados.")
+            return response_with(resp.FEE_BAD_REQUEST_400)
 
-    def cancel(self, pp_name=None):
-        if pp_name and pp_name == 'practipago':
-            collection_transaction = CollectionTransaction.query\
-                .filter(CollectionTransaction.payment_provider_voucher == self.data).one_or_none()
-        else:
-            collection_transaction = CollectionTransaction.query \
-                .filter(CollectionTransaction.display_id == self.data).one_or_none()
+    def cancel(self):
+        collection_transaction = CollectionTransaction.query\
+            .filter(CollectionTransaction.payment_provider_voucher == self.data).one_or_none()
 
         if collection_transaction:
             if collection_transaction.status == 'success':
@@ -105,10 +97,8 @@ class CollectionController:
                     red_cobranza_manager = RedCobranzaManager()
                     return red_cobranza_manager.payment_cancel(collection_transaction)
                 else:
-                    return InternalResponse(status=IRStatus.fail_422,
-                                            message="La operación no se puede anular, ha sido creada hace mas de un dia.")
+                    return response_with(resp.EXPIRED_TIME_TO_CANCEL_TRANSACTION_422)
             else:
-                return InternalResponse(status=IRStatus.fail_422, message="La operación que intenta anular ya ha sido "
-                                                                          "anulada")
+                return response_with(resp.ALREADY_CANCELED_TRANSACTION_422)
         else:
-            return InternalResponse(status=IRStatus.fail_422, message="La operación que intenta anular no existe.")
+            return response_with(resp.INVALID_TRANSACTION_422)

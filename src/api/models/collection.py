@@ -13,7 +13,6 @@ from ..models.payment_provider import PaymentProvider
 from ...api import app, db, bcrypt
 from itsdangerous import (TimedJSONWebSignatureSerializer
                           as Serializer, BadSignature, SignatureExpired)
-from ..utils.responses import InternalResponse, IRStatus
 
 
 # Models

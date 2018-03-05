@@ -1,10 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
 from flask import make_response, jsonify
-from enum import Enum
-from ...api import app
-
 
 # HTTP responses
 # General
@@ -57,16 +53,114 @@ NOT_FOUND_HANDLER_404 = {
 
 SUCCESS_200 = {
     'http_code': 200,
-    'code': 'success'
+    'code': 'success',
+    'code_number': 0
 }
 
 
-# Special
-ACCESS_TOKEN_200 = {
-    'http_code': 200,
-    'code': 'success',
-    'message': 'Token generado exitosamente.',
-    'token': ''
+# CUSTOM
+
+INVALID_CREDENTIALS_401 = {
+    "http_code": 401,
+    "code": "invalidCredentials",
+    "code_number": 1,
+    "message": "Credenciales inválidas."
+}
+
+INVALID_TOKEN_403 = {
+    "http_code": 403,
+    "code": "invalidToken",
+    "code_number": 2,
+    "message": "Token inválido o expirado."
+}
+
+INVALID_PARTNER_422 = {
+    "http_code": 422,
+    "code": "invalidPartner",
+    "code_number": 3,
+    "message": "El número de cédula proveído no existe en el sistema."
+}
+
+FEE_BAD_REQUEST_400 = {
+    "http_code": 400,
+    "code": "badRequest",
+    "code_number": 4,
+    "message": "Datos de las cuotas a pagar mal informados."
+}
+
+FEE_AMOUNT_INVALID_400 = {
+    "http_code": 400,
+    "code": "badRequest",
+    "code_number": 5,
+    "message": "Monto de cuota a pagar igual o menor a cero."
+}
+
+INVALID_PAYMENT_PROVIDER_400 = {
+    "http_code": 400,
+    "code": "badRequest",
+    "code_number": 6,
+    "message": "El proveedor de pago no existe en el sistema o no está habilitado."
+}
+
+INVALID_PAYMENT_PROVIDER_NAME_400 = {
+    "http_code": 400,
+    "code": "badRequest",
+    "code_number": 7,
+    "message": "Nombre de proveedor de pago inválido!."
+}
+
+INVALID_PAYMENT_PROVIDER_DATA_400 = {
+    "http_code": 400,
+    "code": "badRequest",
+    "code_number": 8,
+    "message": "Datos del proveedor de pago inválidos!."
+}
+
+GET_TIGOMONEY_TOKEN_ERROR_500 = {
+    "http_code": 500,
+    "code": "serverError",
+    "code_number": 9,
+    "message": "Error al intentar obtener token de autorización de tigo."
+}
+
+INVALID_TRANSACTION_422 = {
+    "http_code": 422,
+    "code": "validationError",
+    "code_number": 10,
+    "message": "La operación que intenta anular no existe."
+}
+
+ALREADY_CANCELED_TRANSACTION_422 = {
+    "http_code": 422,
+    "code": "validationError",
+    "code_number": 11,
+    "message": "La operación que intenta anular ya ha sido anulada."
+}
+
+EXPIRED_TIME_TO_CANCEL_TRANSACTION_422 = {
+    "http_code": 422,
+    "code": "validationError",
+    "code_number": 12,
+    "message": "La operación no se puede anular, ha sido creada hace mas de un dia."
+}
+
+DISORDERED_FEE_PAYMENT_422 = {
+    "http_code": 422,
+    "code": "validationError",
+    "code_number": 13,
+    "message": "No puede pagar cuotas de forma desordenada dejando pendientes deudas anteriores correspondientes "
+               "al mismo periodo/año"
+}
+
+CUSTOM_SERVER_ERROR_500 = {
+    "http_code": 500,
+    "code": "serverError",
+    "code_number": 500
+}
+
+VALIDATION_ERROR_422 = {
+    "http_code": 422,
+    "code": "validationError"
 }
 
 EXISTING_USER_400 = {
@@ -75,52 +169,20 @@ EXISTING_USER_400 = {
     "message": "Nombre de usuario ya existente."
 }
 
-INVALID_CREDENTIALS_401 = {
-    "http_code": 401,
-    "code": "invalidCredentials",
-    "message": "Credenciales inválidas."
-}
-
-INVALID_TOKEN_403 = {
-    "http_code": 403,
-    "code": "invalidToken",
-    "message": "Token inválido o expirado."
-}
-
-INVALID_PARTNER_422 = {
-    "http_code": 422,
-    "code": "invalidPartner",
-    "message": "El número de cédula proveído no existe en el sistema."
-}
-
-INVALID_PAYMENT_PROVIDER_422 = {
-    "http_code": 422,
-    "code": "invalidPaymentProvider",
-    "message": "El proveedor de pago no existe en el sistema o no esta habilitado."
-}
-
-VALIDATION_ERROR_422 = {
-    "http_code": 422,
-    "code": "validationError"
-}
-
-CUSTOM_SERVER_ERROR_500 = {
-    "http_code": 500,
-    "code": "serverError"
-}
-
 
 def response_with(response, value=None, message=None, error=None, headers={}, pagination=None):
     result = {}
     if value is not None:
         result.update(value)
 
-    if response.get('message', None) is not None:
-        result.update({'message': response['message']})
-    elif message:
+    if message:
         result.update({'message': message})
+    elif response.get('message', None) is not None:
+        result.update({'message': response['message']})
 
     result.update({'code': response['code']})
+    if response.get('code_number', None) is not None:
+        result.update({'code_number': response['code_number']})
 
     if error is not None:
         result.update({'errors': error})
@@ -132,21 +194,3 @@ def response_with(response, value=None, message=None, error=None, headers={}, pa
     headers.update({'server': 'Payment API'})
 
     return make_response(jsonify(result), response['http_code'], headers)
-
-
-class IRStatus(Enum):
-    success = 1
-    fail = 2
-    fail_400 = 3
-    fail_422 = 4
-    fail_500 = 5
-
-
-class InternalResponse(object):
-
-    def __init__(self, status=IRStatus.success, message=None, value=None):
-        self.status = status
-        self.message = message or (status == 'success' and 'Operación exitosa!' or None)
-        self.value = value
-        if not status == IRStatus.success and self.message:
-            app.logger.info(self.message)

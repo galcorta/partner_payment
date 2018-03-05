@@ -13,7 +13,6 @@ from ..models.collection import CollectionEntity, CollectionEntitySchema, Collec
 from ..utils.auth import auth, auth_tk
 from ..models.factusys import Partner, PartnerLoginSchema, PartnerLoginResponseSchema, \
     PartnerDebt, PartnerDebtSchema, PartnerCollection
-from ..utils.responses import IRStatus
 from ..controllers.collection import CollectionController
 from ...api import app, db
 
@@ -64,10 +63,12 @@ def get_auth_token():
     """
     try:
         token = g.entity.generate_auth_token(600)
-        return response_with(resp.ACCESS_TOKEN_200, value={'token': token.decode('ascii')})
+        return response_with(resp.SUCCESS_200,
+                             value={'token': token.decode('ascii')},
+                             message="Token generado exitosamente.")
     except Exception, e:
         app.logger.error(str(e))
-        return response_with(resp.INVALID_INPUT_422)
+        return response_with(resp.SERVER_ERROR_500)
 
 
 #  Solo se utiliza desde la web
@@ -145,7 +146,7 @@ def partner_authenticate():
             return response_with(resp.INVALID_CREDENTIALS_401)
     except Exception, e:
         app.logger.error(str(e))
-        return response_with(resp.INVALID_INPUT_422)
+        return response_with(resp.SERVER_ERROR_500)
 
 
 @route_path_general.route('/1.0/partners/<string:username>/debts', methods=['GET'])
@@ -259,19 +260,14 @@ def create_partner_collection():
         """
     try:
         data = request.get_json()
-        collection_controller = CollectionController(data)
-        result = collection_controller.collect()
-        if result.status == IRStatus.success:
-            return response_with(resp.SUCCESS_200, value=result.value)
-        elif result.status == IRStatus.fail_422:
-            return response_with(resp.VALIDATION_ERROR_422, message=result.message)
-        elif result.status == IRStatus.fail_400:
-            return response_with(resp.BAD_REQUEST_400, message=result.message)
+        if data:
+            collection_controller = CollectionController(data)
+            return collection_controller.collect()
         else:
-            return response_with(resp.SERVER_ERROR_500, message=result.message)
+            return response_with(resp.BAD_REQUEST_400)
     except Exception, e:
         app.logger.error(str(e))
-        return response_with(resp.INVALID_INPUT_422)
+        return response_with(resp.SERVER_ERROR_500)
 
 
 @route_path_general.route('/1.0/partners/collection/<string:transaction_id>', methods=['GET'])
@@ -285,35 +281,24 @@ def get_collection(transaction_id):
             if not error:
                 return response_with(resp.SUCCESS_200, value={"collection": coll_trx})
             else:
-                return response_with(resp.INVALID_PARTNER_422)
+                return response_with(resp.SERVER_ERROR_500)
         else:
-            return response_with(resp.INVALID_PARTNER_422)
+            return response_with(resp.INVALID_INPUT_422)
     except Exception, e:
         app.logger.error(str(e))
         return response_with(resp.SERVER_ERROR_500)
 
 
-@route_path_general.route('/1.0/partners/collection/<string:transaction_id>', methods=['PUT'])
+@route_path_general.route('/1.0/partners/collection/<string:voucher>', methods=['PUT'])
 @auth_tk.login_required
-def cancel_partner_collection(transaction_id):
+def cancel_partner_collection(voucher):
     try:
-        data = request.get_json()
-        collection_controller = CollectionController(transaction_id)
-        if 'payment_provider' in data and data['payment_provider'] == 'practipago':
-            result = collection_controller.cancel(data['payment_provider'])
-        else:
-            result = collection_controller.cancel()
-        if result.status == IRStatus.success:
-            return response_with(resp.SUCCESS_200, message=result.message)
-        elif result.status == IRStatus.fail_422:
-            return response_with(resp.VALIDATION_ERROR_422, message=result.message)
-        elif result.status == IRStatus.fail_400:
-            return response_with(resp.BAD_REQUEST_400, message=result.message)
-        else:
-            return response_with(resp.SERVER_ERROR_500)
+        # data = request.get_json()
+        collection_controller = CollectionController(voucher)
+        return collection_controller.cancel()
     except Exception, e:
         app.logger.error(str(e))
-        return response_with(resp.INVALID_INPUT_422)
+        return response_with(resp.SERVER_ERROR_500)
 
 
 @route_path_general.route('/1.0/payment-providers/tigo-money/callback', methods=['POST'])
@@ -375,14 +360,10 @@ def tigo_callback():
     try:
         data = request.form
         tm_manager = TigoMoneyManager()
-        result = tm_manager.payment_callback(data)
-        if result.status == IRStatus.success:
-            return response_with(resp.SUCCESS_200)
-        else:
-            return response_with(resp.BAD_REQUEST_400)
+        return tm_manager.payment_callback(data)
     except Exception, e:
         app.logger.error(str(e))
-        return response_with(resp.INVALID_INPUT_422)
+        return response_with(resp.SERVER_ERROR_500)
 
 
 @route_path_general.route('/1.0/payment-providers/bancard/callback', methods=['POST'])
@@ -390,14 +371,12 @@ def bancard_callback():
     try:
         data = request.get_json()
         bancard_vpos_manager = BancardVposManager()
-        result = bancard_vpos_manager.payment_callback(data)
-        if result.status == IRStatus.success:
-            return response_with(resp.SUCCESS_200)
-        else:
-            return response_with(resp.BAD_REQUEST_400)
+        return bancard_vpos_manager.payment_callback(data)
     except Exception, e:
         app.logger.error(str(e))
         return response_with(resp.INVALID_INPUT_422)
+
+
 
 
 @route_path_general.route('/1.0/users', methods=['POST'])

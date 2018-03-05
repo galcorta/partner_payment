@@ -153,53 +153,6 @@ class PartnerCollection(db.Model):
                                                            PartnerCollection.comprobante == tipo_comprobante)
         return PartnerCollection.get_count(query) + 1
 
-    # @staticmethod
-    # def create_collection(debts, payment_provider, collection_trx):
-    #     partner = Partner.query.get(debts[0].id_cliente)
-    #     # created_date = db.func.now()
-    #     total_amount = 0
-    #     collection_detail_list = []
-    #     for debt in debts:
-    #         total_amount += debt.amount
-    #         collection_detail_list.append(PartnerCollectionDetail(id_cuota=debt.id,
-    #                                                               monto=debt.amount,
-    #                                                               monto_monefactura=debt.amount))
-    #         debt.saldo -= debt.amount
-    #         debt.estado = 'Cobrado'
-    #
-    #     tipo_comprobante = payment_provider.get_config_by_name('TIPO_COMPROBANTE')
-    #     nro_tipo_comprobante = PartnerCollection\
-    #         ._next_nrotipocomprobante(partner, payment_provider.get_config_by_name('TIPO_COMPROBANTE'))
-    #
-    #     partner_collection_way = PartnerCollectionWay(comprobante=tipo_comprobante,
-    #                                                   nrocomprobante=nro_tipo_comprobante,
-    #                                                   codigocliente=str(partner.id).decode('utf-8'),
-    #                                                   codigovalor=tipo_comprobante,
-    #                                                   monto_cobro=total_amount,
-    #                                                   total_cobro=total_amount,
-    #                                                   ccosto=payment_provider.get_config_by_name('CCOSTO'),
-    #                                                   cliente=str(partner.id).decode('utf-8'),
-    #                                                   caja=payment_provider.get_config_by_name('CAJA'),
-    #                                                   monto_recibido=total_amount,
-    #                                                   collection_transaction_id=collection_trx.id
-    #                                                   )
-    #
-    #     collection = PartnerCollection(
-    #         cliente=partner.id,
-    #         monto=total_amount,
-    #         descripcion='Pago ' + payment_provider.description,
-    #         nro_recibo=collection_trx.payment_provider_voucher,
-    #         comprobante=tipo_comprobante,
-    #         cobrado=True,
-    #         cod_cobro=PartnerCollection._next_cod_cobro(partner),
-    #         nro_tipo_comprobante=nro_tipo_comprobante,
-    #         details=collection_detail_list,
-    #         collection_ways=[partner_collection_way]
-    #
-    #     ).create()
-    #
-    #     return collection
-
     @staticmethod
     def get_by_collection(collection):
         return PartnerCollection.query \
@@ -365,9 +318,3 @@ class PartnerDebtSchema(ModelSchema):
         sqla_session = db.session
 
     amount = fields.Integer()
-
-    # @pre_dump
-    # def remove_skip_values(self, data):
-    #     data.saldo = math.ceil(data.saldo)
-    #     return data
-
