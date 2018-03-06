@@ -187,7 +187,7 @@ def get_partner_debt(username):
             fetched = query.all()
             debt_schema = PartnerDebtSchema(many=True, only=['id', 'saldo', 'fecha_vencimiento'])
             debts, error = debt_schema.dump(fetched)
-            return response_with(resp.SUCCESS_200, value={"debts": debts}, message='Operación exitosa.')
+            return response_with(resp.SUCCESS_200, value={"name": partner.nombre, "debts": debts}, message='Operación exitosa.')
         else:
             return response_with(resp.INVALID_PARTNER_422)
     except Exception, e:

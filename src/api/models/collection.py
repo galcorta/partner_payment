@@ -24,11 +24,10 @@ class CollectionTransaction(db.Model):
     __tablename__ = "CollectionTransaction"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    # display_id = db.Column(db.String(25), nullable=False, unique=True, index=True, default=shortuuid.uuid)
     display_id = db.Column(db.Integer)
     context_id = db.Column(db.Enum('partner_fee', 'product_sale', name='collection_transaction_context'))
     collection_entity_id = db.Column(db.Integer, db.ForeignKey('CollectionEntity.id'), nullable=False)
-    payment_provider_id = db.Column(db.Integer, db.ForeignKey('PaymentProvider.id'))
+    payment_provider_id = db.Column(db.Integer, db.ForeignKey('PaymentProvider.id'), nullable=False)
     payment_provider_voucher = db.Column(db.String(50))
     amount = db.Column(db.Float)
     data = db.Column(db.Text)
@@ -73,11 +72,6 @@ class CollectionEntity(db.Model):
         db.session.add(self)
         db.session.commit()
         return self
-
-    # def update(self):
-    #     db.session.(self)
-    #     db.session.commit()
-    #     return self
 
     def generate_auth_token(self, expiration=600):
         s = Serializer(app.config['SECRET_KEY'], expires_in=expiration)

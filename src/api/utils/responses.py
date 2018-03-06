@@ -42,6 +42,7 @@ UNAUTHORIZED_403 = {
 SERVER_ERROR_500 = {
     "http_code": 500,
     "code": "serverError",
+    "code_number": 500,
     "message": "Server error"
 }
 
@@ -150,6 +151,27 @@ DISORDERED_FEE_PAYMENT_422 = {
     "code_number": 13,
     "message": "No puede pagar cuotas de forma desordenada dejando pendientes deudas anteriores correspondientes "
                "al mismo periodo/año"
+}
+
+FEE_CANCELED_REQUEST_422 = {
+    "http_code": 422,
+    "code": "validationError",
+    "code_number": 14,
+    "message": "Está intentando pagar una cuota ya abonada en su totalidad."
+}
+
+FEE_AMOUNT_EXCEEDED_422 = {
+    "http_code": 422,
+    "code": "validationError",
+    "code_number": 15,
+    "message": "Esta intentando pagar un monto mayor que el saldo de la cuota."
+}
+
+VOUCHER_EXISTENT_422 = {
+    "http_code": 422,
+    "code": "validationError",
+    "code_number": 16,
+    "message": "Ya ha enviado anteriormente una transacción con el mismo voucher."
 }
 
 CUSTOM_SERVER_ERROR_500 = {
