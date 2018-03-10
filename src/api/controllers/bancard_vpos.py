@@ -5,7 +5,7 @@ import requests
 from ..models.payment_provider import PaymentProvider, PaymentProviderOperation
 from ..models.collection import CollectionTransaction
 from ..models.factusys import PartnerDebtSchema, PartnerCollection, PartnerCollectionWay
-from ...api import db
+from ...api import db, app
 from ..models.bancard_vpos import Token, Operation, Request, SingleBuyConfirmRequestSchema
 from ..utils.responses import response_with
 from ..utils import responses as resp
@@ -56,7 +56,7 @@ class BancardVposManager:
                       amount=("%.2f" % collection.amount),
                       currency='PYG')
 
-        return_uri = self.return_url + '?merchantTransactionId=' + collection.display_id
+        return_uri = self.return_url + '?merchantTransactionId=' + str(collection.display_id)
         operation = Operation(
             token=token,
             shop_process_id=collection.display_id,
@@ -137,11 +137,13 @@ class BancardVposManager:
                         db.session.commit()
                         return response_with(resp.SUCCESS_200)
                 else:
-                    return response_with(resp.INVALID_INPUT_422)
+                    return response_with(resp.CALLBACK_INVALID_PARENT_OPERATION_422)
             else:
-                return response_with(resp.INVALID_INPUT_422)
+                app.logger.error(json.dumps(resp.CALLBACK_INVALID_TRANSACTION_422['message']) + ' | ' + json.dumps(data))
+                return response_with(resp.CALLBACK_INVALID_TRANSACTION_422)
         else:
-            return response_with(resp.INVALID_INPUT_422)
+            app.logger.error(json.dumps(error))
+            return response_with(resp.CALLBACK_BAD_REQUEST_400)
 
     def _single_buy_get_confirmation(self):
         pass

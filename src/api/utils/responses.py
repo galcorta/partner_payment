@@ -180,6 +180,28 @@ CUSTOM_SERVER_ERROR_500 = {
     "code_number": 500
 }
 
+
+CALLBACK_BAD_REQUEST_400 = {
+    "http_code": 400,
+    "code": "badRequest",
+    "code_number": 17,
+    "message": "No se pueden procesar los datos enviados en el Body."
+}
+
+CALLBACK_INVALID_TRANSACTION_422 = {
+    "http_code": 422,
+    "code": "validationError",
+    "code_number": 18,
+    "message": "La operación que intenta confirmar no existe."
+}
+
+CALLBACK_INVALID_PARENT_OPERATION_422 = {
+    "http_code": 422,
+    "code": "validationError",
+    "code_number": 19,
+    "message": "No se encuentra la peticion padre que inicio la transaccion."
+}
+
 VALIDATION_ERROR_422 = {
     "http_code": 422,
     "code": "validationError"

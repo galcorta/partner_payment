@@ -366,7 +366,7 @@ def tigo_callback():
         return response_with(resp.SERVER_ERROR_500)
 
 
-@route_path_general.route('/1.0/payment-providers/bancard/callback', methods=['POST'])
+@route_path_general.route('/1.0/payment-providers/bancard-vpos/callback', methods=['POST'])
 def bancard_callback():
     try:
         data = request.get_json()
@@ -375,8 +375,6 @@ def bancard_callback():
     except Exception, e:
         app.logger.error(str(e))
         return response_with(resp.INVALID_INPUT_422)
-
-
 
 
 @route_path_general.route('/1.0/users', methods=['POST'])

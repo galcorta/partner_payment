@@ -106,7 +106,7 @@ class SecurityInformationSchema(BaseSchema):
 
 class OperationSchema(BaseSchema):
     token = fields.Str()
-    shop_process_id = fields.Str()
+    shop_process_id = fields.Int()
     amount = fields.Str()
     currency = fields.Str()
     additional_data = fields.Str()
@@ -119,7 +119,7 @@ class OperationSchema(BaseSchema):
     ticket_number = fields.Str()
     response_code = fields.Str()
     response_description = fields.Str()
-    extended_response_description = fields.Str()
+    extended_response_description = fields.Str(allow_none=True)
     security_information = fields.Nested(SecurityInformationSchema)
 
     @post_load
