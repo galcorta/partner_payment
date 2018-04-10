@@ -202,6 +202,13 @@ CALLBACK_INVALID_PARENT_OPERATION_422 = {
     "message": "No se encuentra la peticion padre que inicio la transaccion."
 }
 
+EXISTING_PARTNER_422 = {
+    "http_code": 422,
+    "code": "validationError",
+    "code_number": 20,
+    "message": "Ya se encuentra registrado como socio en el sistema."
+}
+
 VALIDATION_ERROR_422 = {
     "http_code": 422,
     "code": "validationError"

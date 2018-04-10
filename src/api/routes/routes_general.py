@@ -15,6 +15,7 @@ from ..models.factusys import Partner, PartnerLoginSchema, PartnerLoginResponseS
     PartnerDebt, PartnerDebtSchema, PartnerCollection
 from ..controllers.collection import CollectionController
 from ...api import app, db
+from ..controllers.factusys import FactusysManager
 
 route_path_general = Blueprint("route_path_general", __name__)
 
@@ -179,15 +180,20 @@ def get_partner_debt(username):
                                             type: string
         """
     try:
-        partner = Partner.query.filter_by(documento_identidad=username).all()
+        partner = Partner.query.filter(Partner.documento_identidad == username).all()
+        if not partner:
+            partner = Partner.query.filter(Partner.documento_identidad == Partner.get_ruc_from_ci(username)).all()
+
         if partner:
             partner = partner[0]
             query = PartnerDebt.query.filter(PartnerDebt.id_cliente == partner.id).filter(PartnerDebt.saldo > 0)\
                 .order_by(PartnerDebt.fecha_vencimiento)
-            fetched = query.all()
+            fetched = query.all()[0:(g.entity.username == 'pronet' and 5 or 100)]
             debt_schema = PartnerDebtSchema(many=True, only=['id', 'saldo', 'fecha_vencimiento'])
             debts, error = debt_schema.dump(fetched)
-            return response_with(resp.SUCCESS_200, value={"name": partner.nombre, "debts": debts}, message='Operación exitosa.')
+            return response_with(resp.SUCCESS_200,
+                                 value={"name": partner.nombre, "debts": debts},
+                                 message='Operación exitosa.')
         else:
             return response_with(resp.INVALID_PARTNER_422)
     except Exception, e:
@@ -431,15 +437,22 @@ def update_collection_entity():
     except Exception:
         return response_with(resp.INVALID_INPUT_422)
 
+# @route_path_general.route('/1.0/collection/migration', methods=['POST'])
+# def collection_migration():
+#     try:
+#         MigPagosElectronicos.run_migration()
+#         return response_with(resp.SUCCESS_200)
+#     except Exception, e:
+#         app.logger.error(str(e))
+#         return response_with(resp.SERVER_ERROR_500)
 
-@route_path_general.route('/1.0/partners/status', methods=['GET'])
-def get_partner_status():
+
+@route_path_general.route('/1.0/partners', methods=['POST'])
+def create_partner():
     try:
-        partners_status = Partner.get_partners_status()
-        if partners_status:
-            return response_with(resp.SUCCESS_200, value={"partners_status": partners_status})
-        else:
-            return response_with(resp.INVALID_PARTNER_422)
+        data = request.get_json()
+        factusys_manager = FactusysManager()
+        return factusys_manager.create_partner(data)
     except Exception, e:
         app.logger.error(str(e))
-        return response_with(resp.INVALID_INPUT_422)
+        return response_with(resp.SERVER_ERROR_500)
