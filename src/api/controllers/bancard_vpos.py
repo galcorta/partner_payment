@@ -142,7 +142,7 @@ class BancardVposManager:
                 app.logger.error(json.dumps(resp.CALLBACK_INVALID_TRANSACTION_422['message']) + ' | ' + json.dumps(data))
                 return response_with(resp.CALLBACK_INVALID_TRANSACTION_422)
         else:
-            app.logger.error(json.dumps(error))
+            app.logger.error(json.dumps(error) + ' | ' + json.dumps(data))
             return response_with(resp.CALLBACK_BAD_REQUEST_400)
 
     def _single_buy_get_confirmation(self):

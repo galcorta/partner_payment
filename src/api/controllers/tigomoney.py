@@ -49,6 +49,7 @@ class TigoMoneyManager:
                 'amount': request['OriginPayment']['amount'],
                 'currencyCode': request['OriginPayment']['currencyCode']
             }
+
             request['redirectUri'] = self.redirect_uri
             request['callbackUri'] = self.callback_uri
             return self.request_schema.dump(request)

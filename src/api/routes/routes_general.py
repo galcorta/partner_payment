@@ -3,6 +3,7 @@
 from flask import Blueprint
 from flask import request
 from flask import g
+import json
 
 from ..controllers.tigomoney import TigoMoneyManager
 from ..controllers.bancard_vpos import BancardVposManager
@@ -130,19 +131,21 @@ def partner_authenticate():
         data = request.get_json()
         partner_schema_login = PartnerLoginSchema()
         partner_login, error = partner_schema_login.load(data)
-        partner = Partner.query.filter_by(documento_identidad=partner_login['username']).first()
+        partner = Partner.query.filter_by(documento_identidad=partner_login['username']).one_or_none()
+        if not partner:
+            partner = Partner.query.filter(Partner.documento_identidad ==
+                                           Partner.get_ruc_from_ci(data['username'])).one_or_none()
         if partner and partner.nombre:
             # if partner.verify_password(partner_login['password']):
             token = g.entity.generate_auth_token(600)
             partner.name = partner.nombre
             partner.username = partner.documento_identidad
+            partner.state = partner.estadocliente
             login_response_schema = PartnerLoginResponseSchema()
             result = login_response_schema.dump(partner).data
             return response_with(resp.SUCCESS_200,
                                  value={'user': result, 'token': token},
                                  message='Operación exitosa.')
-            # else:
-            #     return response_with(resp.INVALID_CREDENTIALS_401)
         else:
             return response_with(resp.INVALID_CREDENTIALS_401)
     except Exception, e:
@@ -186,10 +189,30 @@ def get_partner_debt(username):
 
         if partner:
             partner = partner[0]
-            query = PartnerDebt.query.filter(PartnerDebt.id_cliente == partner.id).filter(PartnerDebt.saldo > 0)\
-                .order_by(PartnerDebt.fecha_vencimiento)
-            fetched = query.all()[0:(g.entity.username == 'pronet' and 5 or 100)]
-            debt_schema = PartnerDebtSchema(many=True, only=['id', 'saldo', 'fecha_vencimiento'])
+
+            pending_collections = CollectionTransaction.query.filter(CollectionTransaction.partner_id == partner.id,
+                                                                     CollectionTransaction.status == 'pending').all()
+            pending_debt_ids = []
+            if pending_collections:
+                for item in pending_collections:
+                    data = json.loads(item.data)
+                    pending_debt_ids.extend([d['id'] for d in data['debts']])
+
+            if g.entity.username == 'webportal':
+                query = PartnerDebt.query.filter(PartnerDebt.id_cliente == partner.id,
+                                                 PartnerDebt.saldo > 0).order_by(PartnerDebt.fecha_vencimiento)
+                fetched = query.all()
+                for debt in fetched:
+                    debt.pending = True if debt.id in pending_debt_ids else False
+
+            else:
+                query = PartnerDebt.query.filter(PartnerDebt.id_cliente == partner.id,
+                                                 PartnerDebt.saldo > 0,
+                                                 PartnerDebt.id.notin_(pending_debt_ids))\
+                    .order_by(PartnerDebt.fecha_vencimiento)
+                fetched = query.all()[0:(g.entity.username == 'pronet' and 5 or 100)]
+
+            debt_schema = PartnerDebtSchema(many=True, only=['id', 'saldo', 'fecha_vencimiento', 'pending'])
             debts, error = debt_schema.dump(fetched)
             return response_with(resp.SUCCESS_200,
                                  value={"name": partner.nombre, "debts": debts},
@@ -437,6 +460,43 @@ def update_collection_entity():
     except Exception:
         return response_with(resp.INVALID_INPUT_422)
 
+
+@route_path_general.route('/1.0/partners/register', methods=['POST'])
+@auth.login_required
+def create_partner():
+    try:
+        data = request.get_json()
+        factusys_manager = FactusysManager()
+        return factusys_manager.create_partner(data)
+    except Exception, e:
+        app.logger.error(str(e))
+        return response_with(resp.SERVER_ERROR_500, message='Ha ocurrido un inconveniente al realizar la operacion. '
+                                                            'Por favor vuelva a intentar, si el inconveniente persiste '
+                                                            'comuniquese con el Club.')
+
+
+@route_path_general.route('/1.0/cities', methods=['GET'])
+@auth.login_required
+def get_cities():
+    try:
+        factusys_manager = FactusysManager()
+        result = factusys_manager.get_cities()
+        return response_with(resp.SUCCESS_200, value={"cities": result})
+    except Exception:
+        return response_with(resp.SERVER_ERROR_500)
+
+
+@route_path_general.route('/1.0/departments', methods=['GET'])
+@auth.login_required
+def get_departments():
+    try:
+        factusys_manager = FactusysManager()
+        result = factusys_manager.get_departments()
+        return response_with(resp.SUCCESS_200, value={"departments": result})
+    except Exception:
+        return response_with(resp.SERVER_ERROR_500)
+
+
 # @route_path_general.route('/1.0/collection/migration', methods=['POST'])
 # def collection_migration():
 #     try:
@@ -446,13 +506,22 @@ def update_collection_entity():
 #         app.logger.error(str(e))
 #         return response_with(resp.SERVER_ERROR_500)
 
-
-@route_path_general.route('/1.0/partners', methods=['POST'])
-def create_partner():
+@route_path_general.route('/1.0/categories', methods=['GET'])
+@auth.login_required
+def get_categories():
     try:
-        data = request.get_json()
         factusys_manager = FactusysManager()
-        return factusys_manager.create_partner(data)
-    except Exception, e:
-        app.logger.error(str(e))
+        result = factusys_manager.get_categories()
+        return response_with(resp.SUCCESS_200, value={"categories": result})
+    except Exception:
         return response_with(resp.SERVER_ERROR_500)
+
+
+# @route_path_general.route('/1.0/collection/migration', methods=['POST'])
+# def collection_migration():
+#     try:
+#         MigPagosElectronicos.run_migration()
+#         return response_with(resp.SUCCESS_200)
+#     except Exception, e:
+#         app.logger.error(str(e))
+#         return response_with(resp.SERVER_ERROR_500)

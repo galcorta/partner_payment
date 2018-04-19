@@ -162,6 +162,8 @@ class Partner(db.Model):
     conceptoReteRenta = db.Column('conceptoReteRenta', db.Integer, default=8)
     nro_socio = db.Column('nrosocio', db.String(50), nullable=False, default=next_nro_socio)
     fechanacimiento = db.Column('fechanacimiento', db.Date)
+    proponente = db.Column('proponente', db.String(150))
+    origen = db.Column('origen', db.String(15))
 
     ventas = db.relationship('VentasCab', backref='partner', lazy='dynamic')
 
@@ -274,6 +276,10 @@ class PartnerCollection(db.Model):
         self.comprobante = tipo_comprobante
         self.cod_cobro = PartnerCollection._next_cod_cobro(partner)
         self.nro_tipo_comprobante = nro_tipo_comprobante
+
+        if partner.origen == 'PORTAL_WEB' and partner.estadocliente == 'PEND':
+            partner.estadocliente = 'ACTI'
+            db.session.add(partner)
 
         db.session.add(self)
         db.session.commit()
@@ -744,6 +750,36 @@ class VentasDet(db.Model):
         return '<VentasDet %r>' % self.descripcion
 
 
+class Ciudad(db.Model):
+    __tablename__ = "Ciudades"
+
+    codciudad = db.Column('codciudad', db.Integer, primary_key=True)
+    idciudad = db.Column('idciudad', db.Integer, autoincrement=True, nullable=False)
+    nombre = db.Column('nombre', db.String(50), nullable=False)
+    codpais = db.Column('codpais', db.Integer, nullable=False)
+
+
+class Departamento(db.Model):
+    __tablename__ = "Departamentos"
+
+    id_departamento = db.Column('id_departamento', db.Integer, primary_key=True, autoincrement=True)
+    codcontrol = db.Column('codcontrol', db.String(50), nullable=False)
+    nombre = db.Column('nombre', db.String(200), nullable=False)
+    descripcion = db.Column('descripcion', db.String(500), nullable=False)
+    predeterminado = db.Column('predeterminado', db.Boolean, nullable=False)
+
+
+class Pais(db.Model):
+    __tablename__ = "Paises"
+
+    codpais = db.Column('codpais', db.Integer, primary_key=True)
+    idpais = db.Column('idpais', db.Integer, autoincrement=True, nullable=False)
+    nombre = db.Column('nombre', db.String(50), nullable=False)
+    abreviatura = db.Column('abreviatura', db.String(4), nullable=False)
+    descripcion = db.Column('descripcion', db.String(100))
+    predeterminado = db.Column('predeterminado', db.Boolean, nullable=False)
+
+
 # Articulo
 class Articulo(db.Model):
     __tablename__ = "Articulos"
@@ -771,6 +807,8 @@ class CategoriasEntidades(db.Model):
     vigenciadesde = db.Column('vigenciadesde', db.Date, nullable=False)
     vigenciahasta = db.Column('vigenciahasta', db.Date, nullable=False)
     estado = db.Column('estado', db.String(15), nullable=False)
+    articulo_id = db.Column('articulo_id', db.Integer)
+    web_schema = db.Column('web_schema', db.Text)
 
 
 # Model Schemas
@@ -780,11 +818,30 @@ class PartnerDebtSchema(ModelSchema):
         sqla_session = db.session
 
     amount = fields.Integer()
+    pending = fields.Boolean()
 
 
 class PartnerSchema(ModelSchema):
     class Meta(ModelSchema.Meta):
         model = Partner
+        sqla_session = db.session
+
+
+class CiudadSchema(ModelSchema):
+    class Meta(ModelSchema.Meta):
+        model = Ciudad
+        sqla_session = db.session
+
+
+class DepartamentoSchema(ModelSchema):
+    class Meta(ModelSchema.Meta):
+        model = Departamento
+        sqla_session = db.session
+
+
+class CategoriasEntidadesSchema(ModelSchema):
+    class Meta(ModelSchema.Meta):
+        model = CategoriasEntidades
         sqla_session = db.session
 
 
@@ -798,4 +855,7 @@ class PartnerLoginResponseSchema(Schema):
     id = fields.Integer()
     name = fields.String()
     username = fields.String()
-    # access_token = fields.String()
+    state = fields.String()
+    nro_socio = fields.String()
+
+
