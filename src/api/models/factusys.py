@@ -37,7 +37,7 @@ class Partner(db.Model):
     ccosto_cliente = db.Column('ccosto_cliente', db.String(20), default='1.01')
     ccosto_proveedor = db.Column('ccosto_proveedor', db.String(20), default='')
     ccosto_receptor = db.Column('ccosto_receptor', db.String(20), default='')
-    telefono = db.Column('telefono', db.String(20))
+    telefono = db.Column('telefono', db.String(20), default='')
     fax = db.Column('fax', db.String(20), default='')
     movil = db.Column('movil', db.String(20))
     direccion = db.Column('direccion', db.String(200))
@@ -278,6 +278,11 @@ class PartnerCollection(db.Model):
         self.nro_tipo_comprobante = nro_tipo_comprobante
 
         if partner.origen == 'PORTAL_WEB' and partner.estadocliente == 'PEND':
+            first_debt = PartnerDebt.query.filter(PartnerDebt.id == debts[0].id).one_or_none()
+            if first_debt:
+                if first_debt.fecha_vencimiento.month in [4, 10]:
+                    partner.idproyecto = 2
+
             partner.estadocliente = 'ACTI'
             db.session.add(partner)
 

@@ -11,16 +11,17 @@ import json
 class FactusysManager:
 
     def default_fecha_and_cuotas(self):
-        today = datetime.date.today()
-        current_month = today.month
-        if current_month in [1, 2, 3]:
-            return {'fecha': datetime.date(today.year, 1, 1), 'cuotas': 12}
-        elif current_month in [4, 5, 6]:
-            return {'fecha': datetime.date(today.year, 4, 1), 'cuotas': 9}
-        elif current_month in [7, 8, 9]:
-            return {'fecha': datetime.date(today.year, 7, 1), 'cuotas': 6}
-        elif current_month in [10, 11, 12]:
-            return {'fecha': datetime.date(today.year, 10, 1), 'cuotas': 3}
+        return {'fecha': datetime.date(2019, 1, 1), 'cuotas': 12}
+        # today = datetime.date.today()
+        # current_month = today.month
+        # if current_month in [1, 2, 3]:
+        #     return {'fecha': datetime.date(today.year, 1, 1), 'cuotas': 12}
+        # elif current_month in [4, 5]:
+        #     return {'fecha': datetime.date(today.year, 4, 1), 'cuotas': 9}
+        # elif current_month in [6, 7, 8, 9]:
+        #     return {'fecha': datetime.date(today.year, 7, 1), 'cuotas': 6}
+        # elif current_month in [10, 11, 12]:
+        #     return {'fecha': datetime.date(today.year, 10, 1), 'cuotas': 3}
 
     def create_partner(self, data):
         existent_partner = Partner.query.filter(Partner.documento_identidad == data['cedula']).all()
@@ -60,7 +61,7 @@ class FactusysManager:
                     telefono=data['telefono'] if data.get('telefono') else None,
                     movil=data['celular'],
                     direccion=data['direccion'],
-                    mail1=data['email'],
+                    mail1=data['email'] if data.get('email') else None,
                     idcategoriasentidades=data['categoryId'],
                     fechanacimiento=fecha_nacimiento,
                     codciudad=data['ciudadId'],

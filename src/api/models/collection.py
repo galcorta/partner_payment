@@ -91,6 +91,28 @@ class CollectionEntity(db.Model):
         return entity
 
 
+class WebPortalNotification(db.Model):
+    __tablename__ = "WebPortalNotification"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    content = db.Column(db.Text, nullable=False)
+    notification_type = db.Column(db.String(20))
+    enabled = db.Column(db.Boolean, default=True)
+    partner_id = db.Column('partner_id', db.Integer, db.ForeignKey('Entidades.codigo'), nullable=False)
+    create_date = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    active = db.Column(db.Boolean, default=True)
+
+    def create(self):
+        enabled_notif = WebPortalNotification.query.filter_by(enabled=True, partner_id=self.partner_id).all()
+        for notif in enabled_notif:
+            notif.enabled = False
+            db.session.add(notif)
+
+        db.session.add(self)
+        db.session.commit()
+        return self
+
+
 # Schemas
 class CreateCollectionSchema(Schema):
     payment_method = fields.Str()
@@ -106,4 +128,12 @@ class CollectionEntitySchema(ModelSchema):
 class CollectionTransactionSchema(ModelSchema):
     class Meta(ModelSchema.Meta):
         model = CollectionTransaction
+        sqla_session = db.session
+
+    description = fields.Str()
+
+
+class WebPortalNotificationSchema(ModelSchema):
+    class Meta(ModelSchema.Meta):
+        model = WebPortalNotification
         sqla_session = db.session

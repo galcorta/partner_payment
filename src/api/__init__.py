@@ -26,6 +26,7 @@ app = Flask(__name__)
 
 CORS(app)
 
+
 app_settings = os.getenv('APP_SETTINGS', 'src.api.utils.config.ProductionConfig')
 app.config.from_object(app_settings)
 
@@ -37,7 +38,7 @@ app.config.from_object(app_settings)
 app.logger  # initialise logger
 logging.config.dictConfig(LoggerConfig.dictConfig)
 
-app.logger.info("Inicia la app")
+# app.logger.info("Inicia la app")
 
 ####################
 #### extensions ####
@@ -69,20 +70,22 @@ def add_header(response):
 
 @app.errorhandler(400)
 def bad_request(e):
-    logging.error(e)
+    # logging.error(e)
+    app.logger.error(e)
     return response_with(BAD_REQUEST_400)
 
 
 @app.errorhandler(500)
 def server_error(e):
-    logging.error(e)
+    # logging.error(e)
     app.logger.error(e)
     return response_with(SERVER_ERROR_500)
 
 
 @app.errorhandler(404)
 def not_found(e):
-    logging.error(e)
+    # logging.error(e)
+    app.logger.error(e)
     return response_with(NOT_FOUND_HANDLER_404)
 
 

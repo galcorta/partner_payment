@@ -22,7 +22,7 @@ def create_db():
 def drop_db():
     from src.api.models.payment_provider import PaymentProvider, PaymentProviderConfiguration, \
         PaymentProviderEndpoint, PaymentProviderOperation
-    from src.api.models.collection import CollectionTransaction, CollectionEntity
+    from src.api.models.collection import CollectionTransaction, CollectionEntity, WebPortalNotification
     """Drops the db tables."""
     # db.drop_all()
     db.metadata.drop_all(db.engine, tables=[
@@ -32,6 +32,7 @@ def drop_db():
         PaymentProvider.__table__,
         CollectionTransaction.__table__,
         CollectionEntity.__table__,
+        WebPortalNotification.__table__,
     ])
 
 

@@ -20,6 +20,7 @@ class TigoMoneyManager:
         self.payment_provider = PaymentProvider.query.filter_by(name='tigo_money').one()
         self.token_uri = self.payment_provider.get_endpoint_by_name('TM_TOKEN_URI')
         self.payment_url = self.payment_provider.get_endpoint_by_name('TM_PAYMENT_URI')
+        self.payment_confirmation_url = self.payment_provider.get_endpoint_by_name('TM_PAYMENT_CONFIRMATION_URI')
         self.redirect_uri = self.payment_provider.get_endpoint_by_name('TM_REDIRECT_URI')
         self.callback_uri = self.payment_provider.get_endpoint_by_name('TM_CALLBACK_URI')
         self.api_key = self.payment_provider.get_config_by_name('TM_API_KEY')
@@ -142,3 +143,51 @@ class TigoMoneyManager:
                 return response_with(resp.INVALID_INPUT_422)
         else:
             return response_with(resp.INVALID_INPUT_422)
+
+    def payment_get_confirmation(self, collection):
+        access_token = self._token_generation()
+        if access_token:
+            mfs_transaction_id = collection.payment_provider_voucher or 'ClubOlimpia'
+
+            tm_req = PaymentProviderOperation(transaction_id=collection.id,
+                                              payment_provider_id=self.payment_provider.id,
+                                              operation_type='request',
+                                              direction='sended',
+                                              content_type='application/json',
+                                              content=None,
+                                              method='GET',
+                                              authorization=access_token).create()
+
+            url = self.payment_confirmation_url + '/' + mfs_transaction_id + '/' + str(collection.display_id)
+            headers = {"Authorization": "Bearer %s" % access_token, 'Content-Type': 'application/json'}
+            res = requests.get(url, headers=headers)
+
+            try:
+                res_json = res.json()
+            except ValueError:
+                res_json = res.content
+
+            PaymentProviderOperation(transaction_id=collection.id,
+                                     payment_provider_id=self.payment_provider.id,
+                                     operation_type='response',
+                                     direction='received',
+                                     content_type='application/json',
+                                     content=json.dumps(res_json),
+                                     status_code=res.status_code,
+                                     parent_id=tm_req.id).create()
+
+            if res.status_code == requests.codes.ok:
+                transaction = res_json['Transaction']
+                if transaction['status'] == 'success':
+                    result = 'success', transaction['mfsTransactionId']
+                else:
+                    result = 'cancel', None
+
+            elif res.status_code == 404:
+                result = 'cancel', None
+            else:
+                result = 'pending', None
+        else:
+            result = 'pending', None
+
+        return result

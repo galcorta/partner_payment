@@ -41,7 +41,6 @@ class Operation(object):
         self.response = response
         self.response_details = response_details
         self.authorization_number = authorization_number
-
         self.ticket_number = ticket_number
         self.response_code = response_code
         self.response_description = response_description
@@ -50,11 +49,11 @@ class Operation(object):
 
 
 class SecurityInformation(object):
-    def __init__(self, card_source, customer_ip, card_country, version, risk_index):
-        self.card_source = card_source
+    def __init__(self, customer_ip, version, card_source=None, card_country=None,  risk_index=None):
         self.customer_ip = customer_ip
-        self.card_country = card_country
         self.version = version
+        self.card_source = card_source
+        self.card_country = card_country
         self.risk_index = risk_index
 
 
@@ -80,6 +79,26 @@ class SingleBuyConfirmRequest(object):
         self.operation = operation
 
 
+class GetSingleBuyConfirmResponse(object):
+    def __init__(self, status, confirmation=None, messages=None):
+        self.status = status
+        self.confirmation = confirmation
+        self.messages = messages
+
+
+class SingleBuyRollbackResponse(object):
+    def __init__(self, status, messages=None):
+        self.status = status
+        self.messages = messages
+
+
+class Message(object):
+    def __init__(self, key, level, dsc):
+        self.key = key
+        self.level = level
+        self.dsc = dsc
+
+
 # Schemas
 class BaseSchema(Schema):
     SKIP_VALUES = set([None])
@@ -93,11 +112,11 @@ class BaseSchema(Schema):
 
 
 class SecurityInformationSchema(BaseSchema):
-    card_source = fields.Str()
     customer_ip = fields.Str()
-    card_country = fields.Str()
     version = fields.Str()
-    risk_index = fields.Int()
+    card_source = fields.Str(allow_none=True)
+    card_country = fields.Str(allow_none=True)
+    risk_index = fields.Int(allow_none=True)
 
     @post_load
     def make_object(self, data):
@@ -115,7 +134,7 @@ class OperationSchema(BaseSchema):
     cancel_url = fields.Str()
     response = fields.Str()
     response_details = fields.Str()
-    authorization_number = fields.Str()
+    authorization_number = fields.Str(allow_none=True)
     ticket_number = fields.Str()
     response_code = fields.Str()
     response_description = fields.Str()
@@ -141,6 +160,12 @@ class ResponseSchema(Schema):
         return Response(**data)
 
 
+class MessageSchema(Schema):
+    key = fields.Str()
+    level = fields.Str()
+    dsc = fields.Str()
+
+
 class SingleBuyConfirmRequestSchema(Schema):
     operation = fields.Nested(OperationSchema, required=True)
 
@@ -149,4 +174,20 @@ class SingleBuyConfirmRequestSchema(Schema):
         return SingleBuyConfirmRequest(**data)
 
 
+class GetSingleBuyConfirmResponseSchema(Schema):
+    status = fields.Str(required=True)
+    confirmation = fields.Nested(OperationSchema)
+    messages = fields.Nested(MessageSchema, many=True)
 
+    @post_load
+    def make_object(self, data):
+        return GetSingleBuyConfirmResponse(**data)
+
+
+class SingleBuyRollbackResponseSchema(Schema):
+    status = fields.Str(required=True)
+    messages = fields.Nested(MessageSchema, many=True)
+
+    @post_load
+    def make_object(self, data):
+        return SingleBuyRollbackResponse(**data)

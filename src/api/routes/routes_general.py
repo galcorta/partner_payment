@@ -4,13 +4,14 @@ from flask import Blueprint
 from flask import request
 from flask import g
 import json
+import datetime
 
 from ..controllers.tigomoney import TigoMoneyManager
 from ..controllers.bancard_vpos import BancardVposManager
 from ..utils.responses import response_with
 from ..utils import responses as resp
 from ..models.collection import CollectionEntity, CollectionEntitySchema, CollectionTransaction, \
-    CollectionTransactionSchema
+    CollectionTransactionSchema, WebPortalNotification, WebPortalNotificationSchema
 from ..utils.auth import auth, auth_tk
 from ..models.factusys import Partner, PartnerLoginSchema, PartnerLoginResponseSchema, \
     PartnerDebt, PartnerDebtSchema, PartnerCollection
@@ -131,7 +132,7 @@ def partner_authenticate():
         data = request.get_json()
         partner_schema_login = PartnerLoginSchema()
         partner_login, error = partner_schema_login.load(data)
-        partner = Partner.query.filter_by(documento_identidad=partner_login['username']).one_or_none()
+        partner = Partner.query.filter_by(documento_identidad=str(partner_login['username'])).one_or_none()
         if not partner:
             partner = Partner.query.filter(Partner.documento_identidad ==
                                            Partner.get_ruc_from_ci(data['username'])).one_or_none()
@@ -190,13 +191,8 @@ def get_partner_debt(username):
         if partner:
             partner = partner[0]
 
-            pending_collections = CollectionTransaction.query.filter(CollectionTransaction.partner_id == partner.id,
-                                                                     CollectionTransaction.status == 'pending').all()
-            pending_debt_ids = []
-            if pending_collections:
-                for item in pending_collections:
-                    data = json.loads(item.data)
-                    pending_debt_ids.extend([d['id'] for d in data['debts']])
+            collection_manager = CollectionController(partner.id)
+            pending_debt_ids = collection_manager.clear_pending_collection()
 
             if g.entity.username == 'webportal':
                 query = PartnerDebt.query.filter(PartnerDebt.id_cliente == partner.id,
@@ -305,7 +301,12 @@ def get_collection(transaction_id):
     try:
         collection_trx = CollectionTransaction.query.filter_by(display_id=transaction_id).one_or_none()
         if collection_trx:
-            col_trx_schema = CollectionTransactionSchema(only=['display_id', 'amount', 'status'])
+            if collection_trx.status in ['success', 'cancel']:
+                collection_manager = CollectionController(collection_trx)
+                collection_trx.description = collection_manager.get_collection_description()
+
+            col_trx_schema = CollectionTransactionSchema(only=['display_id', 'amount', 'status',
+                                                               'create_date', 'description'])
             coll_trx, error = col_trx_schema.dump(collection_trx)
             if not error:
                 return response_with(resp.SUCCESS_200, value={"collection": coll_trx})
@@ -388,6 +389,7 @@ def tigo_callback():
     # """
     try:
         data = request.form
+        app.logger.info(json.dumps(data))
         tm_manager = TigoMoneyManager()
         return tm_manager.payment_callback(data)
     except Exception, e:
@@ -399,6 +401,7 @@ def tigo_callback():
 def bancard_callback():
     try:
         data = request.get_json()
+        app.logger.info(json.dumps(data))
         bancard_vpos_manager = BancardVposManager()
         return bancard_vpos_manager.payment_callback(data)
     except Exception, e:
@@ -506,6 +509,7 @@ def get_departments():
 #         app.logger.error(str(e))
 #         return response_with(resp.SERVER_ERROR_500)
 
+
 @route_path_general.route('/1.0/categories', methods=['GET'])
 @auth.login_required
 def get_categories():
@@ -517,6 +521,58 @@ def get_categories():
         return response_with(resp.SERVER_ERROR_500)
 
 
+@route_path_general.route('/1.0/partners/<string:username>/notifications', methods=['GET'])
+@auth_tk.login_required
+def get_partner_notifications(username):
+    try:
+        partner = Partner.query.filter(Partner.documento_identidad == username).all()
+        if not partner:
+            partner = Partner.query.filter(Partner.documento_identidad == Partner.get_ruc_from_ci(username)).all()
+
+        if partner:
+            partner = partner[0]
+            fetched = WebPortalNotification.query.filter(WebPortalNotification.partner_id == partner.id,
+                                                         WebPortalNotification.enabled).all()
+            if fetched:
+                notif_schema = WebPortalNotificationSchema(many=True, only=['id', 'content', 'notification_type',
+                                                                            'enabled'])
+                notifications, error = notif_schema.dump(fetched)
+                if not error:
+                    return response_with(resp.SUCCESS_200,
+                                         value={"notifications": notifications},
+                                         message='Operación exitosa.')
+                else:
+                    return response_with(resp.SERVER_ERROR_500)
+            else:
+                return response_with(resp.SUCCESS_200, message='No hay notificaciones pendientes.')
+        else:
+            return response_with(resp.INVALID_PARTNER_422)
+    except Exception, e:
+        app.logger.error(str(e))
+        return response_with(resp.SERVER_ERROR_500)
+
+
+@route_path_general.route('/1.0/notifications', methods=['PUT'])
+@auth_tk.login_required
+def update_notifications():
+    try:
+        data = request.get_json()
+        notif_schema = WebPortalNotificationSchema(only=['id', 'content', 'notification_type', 'enabled'])
+        notification, error = notif_schema.load(data)
+        if notification:
+            db.session.commit()
+            notification_json, error = notif_schema.dump(notification)
+            if notification_json:
+                return response_with(resp.SUCCESS_200, value={"notification": notification_json})
+            else:
+                return response_with(resp.MISSING_PARAMETERS_422)
+        else:
+            return response_with(resp.MISSING_PARAMETERS_422)
+    except Exception, e:
+        app.logger.error(str(e))
+        return response_with(resp.SERVER_ERROR_500)
+
+
 # @route_path_general.route('/1.0/collection/migration', methods=['POST'])
 # def collection_migration():
 #     try:
@@ -525,3 +581,20 @@ def get_categories():
 #     except Exception, e:
 #         app.logger.error(str(e))
 #         return response_with(resp.SERVER_ERROR_500)
+
+@route_path_general.route('/1.0/partners/<string:username>/collections/clear', methods=['GET'])
+@auth_tk.login_required
+def clear_partner_collection(username):
+    try:
+        partner = Partner.query.filter(Partner.documento_identidad == username).all()
+        if not partner:
+            partner = Partner.query.filter(Partner.documento_identidad == Partner.get_ruc_from_ci(username)).all()
+
+        if partner:
+            partner = partner[0]
+            collection_manager = CollectionController(partner.id)
+            collection_manager.clear_pending_collection()
+            return response_with(resp.SUCCESS_200)
+    except Exception, e:
+        app.logger.error(str(e))
+        return response_with(resp.SERVER_ERROR_500)
